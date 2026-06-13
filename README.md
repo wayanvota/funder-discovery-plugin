@@ -12,7 +12,7 @@ The plugin combines five fundraising skills with public 990 data workflows:
 
 ## Data Sources
 
-The skills are designed to use Kindora MCP tools when they are available in ChatGPT or Codex. Kindora provides funder search, profiles, 990 summaries, grant lists, giving statistics, NTEE lookup, open grants, and philanthropy jobs.
+The plugin includes a local `kindora` MCP server based on the public [wayanvota/kindora-chatgpt-mcp](https://github.com/wayanvota/kindora-chatgpt-mcp) connector. It proxies Kindora's read-only funder search, profiles, 990 summaries, grant lists, giving statistics, NTEE lookup, open grants, and philanthropy jobs.
 
 This repository also includes a local `propublica990` MCP server that queries ProPublica Nonprofit Explorer public endpoints for nonprofit search, organization details, filing summaries, and PDF filing links.
 
@@ -23,6 +23,7 @@ The important discipline is that the plugin does not treat a foundation name as 
 ```text
 .codex-plugin/plugin.json      Plugin manifest
 .mcp.json                      Local MCP server registration
+mcp/kindora-server.mjs         Kindora MCP proxy
 mcp/server.mjs                 ProPublica 990 MCP server
 skills/organization-details    Nonprofit profile intake skill
 skills/prospect-discovery      Foundation discovery workflow
@@ -36,7 +37,7 @@ docs/                          Setup and workflow notes
 
 Publish this folder as a public GitHub repository. In a Codex or ChatGPT environment that supports GitHub plugin installs, add the repository as a plugin source.
 
-For best results, also connect the Kindora MCP in the same ChatGPT or Codex environment. The bundled ProPublica server gives the plugin public 990 lookup capability, while Kindora adds grant-level search, giving statistics, and richer foundation profiles.
+The plugin exposes both Kindora and ProPublica tools from `.mcp.json`. For ChatGPT custom connectors that require a public HTTPS MCP URL, deploy the Kindora connector from [wayanvota/kindora-chatgpt-mcp](https://github.com/wayanvota/kindora-chatgpt-mcp) or point ChatGPT directly at the public Kindora endpoint described there.
 
 ## Local Validation
 
@@ -46,7 +47,13 @@ From the repository root:
 node mcp/server.mjs
 ```
 
-The server speaks MCP over stdio, so it will wait for JSON-RPC messages. To check plugin packaging from a Codex development environment, run the plugin validator:
+The servers speak MCP over stdio, so they will wait for JSON-RPC messages. To check local tool registration:
+
+```bash
+npm run check:mcp
+```
+
+To check plugin packaging from a Codex development environment, run the plugin validator:
 
 ```bash
 python3 /Users/wayanvota/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .

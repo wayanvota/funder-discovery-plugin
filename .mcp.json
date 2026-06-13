@@ -1,5 +1,14 @@
 {
   "mcpServers": {
+    "kindora": {
+      "title": "Kindora Funder Discovery",
+      "description": "Proxy Kindora's public read-only MCP tools for foundation, funder, 990, grant, and open-opportunity discovery.",
+      "cwd": ".",
+      "command": "node",
+      "args": [
+        "./mcp/kindora-server.mjs"
+      ]
+    },
     "propublica990": {
       "title": "ProPublica 990 Lookup",
       "description": "Search ProPublica Nonprofit Explorer and fetch public IRS 990 organization and filing records.",
