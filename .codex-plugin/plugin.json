@@ -1,0 +1,36 @@
+{
+  "name": "funder-discovery-plugin",
+  "version": "0.1.0",
+  "description": "Discover, brief, score, and prioritize foundation prospects from public 990 data.",
+  "author": {
+    "name": "Wayan Vota"
+  },
+  "license": "MIT",
+  "keywords": [
+    "fundraising",
+    "foundations",
+    "irs-990",
+    "prospecting",
+    "nonprofits"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Funder Discovery",
+    "shortDescription": "Build ranked foundation prospect pipelines from 990 data.",
+    "longDescription": "Funder Discovery helps nonprofit fundraisers collect organization fit criteria, discover aligned foundations, generate one-page funder briefs, apply a transparent fit rubric, and export CRM-ready prospect pipelines using Kindora philanthropy data and ProPublica Nonprofit Explorer 990 records.",
+    "developerName": "Wayan Vota",
+    "category": "Productivity",
+    "capabilities": [
+      "Research",
+      "Analysis",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Build a ranked foundation prospect list.",
+      "Create a one-page brief for this foundation.",
+      "Turn these prospects into a CRM pipeline."
+    ],
+    "brandColor": "#245C46"
+  },
+  "mcpServers": "./.mcp.json"
+}

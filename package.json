@@ -1,0 +1,15 @@
+{
+  "name": "funder-discovery-plugin",
+  "version": "0.1.0",
+  "description": "Codex plugin for nonprofit foundation prospect discovery from public 990 data.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "check:mcp": "node scripts/check-mcp.mjs",
+    "start:mcp": "node mcp/server.mjs"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

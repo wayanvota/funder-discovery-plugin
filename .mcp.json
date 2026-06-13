@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "propublica990": {
+      "title": "ProPublica 990 Lookup",
+      "description": "Search ProPublica Nonprofit Explorer and fetch public IRS 990 organization and filing records.",
+      "cwd": ".",
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs"
+      ]
+    }
+  }
+}
