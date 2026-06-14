@@ -9,7 +9,7 @@ A run passes only if:
 - The GPT asks for missing organization details in plain English.
 - The GPT does not expose JSON, OpenAPI, MCP, or backend language to the fundraiser.
 - The GPT calls the action only after it has the required intake fields.
-- The final answer includes a ranked shortlist, brief per funder, next action per funder, and CSV.
+- The final answer includes a ranked active shortlist, brief per active funder, next action per funder, research-only candidates with reasons, and downloadable XLSX, CSV, and Markdown links.
 - Weak evidence is labeled as weak.
 - The user can understand what to do next without technical knowledge.
 
@@ -53,8 +53,9 @@ Build a foundation prospect pipeline for a nonprofit that helps low-income young
 Expected:
 
 - GPT calls `runFunderDiscoveryPilot`.
-- Final answer includes a table, briefs, CSV, and verification note.
+- Final answer includes a table, briefs, research-only section if needed, download links, and verification note.
 - It explains that scores are prioritization aids.
+- It does not paste raw CSV unless the user asks for a preview.
 
 ### 4. Scoring Sanity
 
@@ -64,13 +65,15 @@ Expected:
 
 - Funders with aligned mission language and plausible grant size outrank stale or off-topic funders.
 - A famous or large foundation should not outrank better-fit foundations solely because it has more assets.
+- Funders without geography, similar-grantee, or grant-size evidence stay out of the active pipeline.
+- Intermediaries or operating nonprofits are categorized as partnership targets, not direct grant prospects.
 
 ### 5. CSV Fields
 
 Expected CSV columns:
 
 ```text
-rank,foundation_name,ein,website,hq_location,latest_filing_year,assets,annual_grants_paid,typical_grant_size,program_fit_score,geography_fit_score,grant_size_fit_score,recency_score,openness_score,relationship_path_score,total_fit_score,confidence,stage,recommended_ask,next_action,owner,deadline,relationship_path,evidence_summary,main_risk,source_links
+rank,foundation_name,ein,website,hq_location,latest_filing_year,assets,annual_grants_paid,typical_grant_size,program_fit_score,geography_fit_score,grant_size_fit_score,recency_score,openness_score,relationship_path_score,total_fit_score,prospect_category,confidence,stage,recommended_ask,next_action,owner,deadline,relationship_path,evidence_summary,main_risk,why_not,similar_grantee_matches,source_links
 ```
 
 Fail if:
@@ -78,6 +81,8 @@ Fail if:
 - `next_action` is blank.
 - `confidence` is blank.
 - `main_risk` is blank.
+- `prospect_category` is blank.
+- `why_not` is blank.
 - The CSV is not importable because of unescaped commas or line breaks.
 
 ### 6. Failure Case: Vague Mission

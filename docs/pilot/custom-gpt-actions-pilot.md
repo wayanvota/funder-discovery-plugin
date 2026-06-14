@@ -13,8 +13,9 @@ The GPT handles the conversation. The action server handles the structured workf
 - Intake readiness check.
 - Foundation discovery.
 - Fit scoring.
+- Prospect quality gating.
 - Short funder briefs.
-- CRM-ready CSV generation.
+- Downloadable XLSX, CSV, and Markdown pipeline files.
 
 ## Why One Main Action
 
@@ -70,6 +71,6 @@ Public GPTs with actions require a valid privacy policy URL. The policy should s
 - `/openapi.json` imports cleanly into the GPT action editor.
 - The GPT Preview can call `runFunderDiscoveryPilot`.
 - Incomplete profile returns natural intake questions.
-- Complete profile returns prospects, briefs, pipeline rows, and CSV.
+- Complete profile returns active prospects, research-only candidates, briefs, pipeline rows, and downloadable files.
 - Privacy policy URL is present before public sharing.
 - Testers understand that recommendations are leads, not guarantees.

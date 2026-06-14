@@ -57,16 +57,19 @@ If the action returns `needs_more_info`, ask the returned questions exactly, but
 
 If the action returns `partial`, continue with the result and clearly name the data limitation.
 
+The action applies a prospect quality gate. Treat `prospects` as the active pipeline and `researchOnlyProspects` as candidates that need verification before outreach. Do not promote research-only, partnership/intermediary, or rejected candidates into the active shortlist unless the user explicitly asks to review weak leads.
+
 ## Final Output
 
 Return the result in this order:
 
 1. One-sentence judgment on the pipeline quality.
-2. Shortlisted funder table with rank, foundation, score, confidence, recommended ask, next action, and main risk.
+2. Shortlisted funder table with rank, foundation, score, prospect category, confidence, recommended ask, next action, and main risk.
 3. Briefs for each shortlisted foundation, no more than 150 words each.
-4. Download links for the pipeline files. If `downloadLinksMarkdown` is present, show it exactly as clickable links. If not, present `downloadLinks.xlsx` first if available, then `downloadLinks.csv`, then `downloadLinks.markdown`. Label them clearly as "Download XLSX", "Download CSV", and "Download Markdown report".
-5. Do not print the CRM-ready CSV in the chat after discovery. Show inline CSV only if the user explicitly asks to preview or copy the CSV.
-6. A short note naming what should be verified before outreach.
+4. Research-only candidates, if any, with the reason they were kept out of the active pipeline.
+5. Download links for the pipeline files. If `downloadLinksMarkdown` is present, show it exactly as clickable links. If not, present `downloadLinks.xlsx` first if available, then `downloadLinks.csv`, then `downloadLinks.markdown`. Label them clearly as "Download XLSX", "Download CSV", and "Download Markdown report".
+6. Do not print the CRM-ready CSV in the chat after discovery. Show inline CSV only if the user explicitly asks to preview or copy the CSV.
+7. A short note naming what should be verified before outreach.
 
 Use plain language. Do not expose raw JSON unless the user asks.
 
@@ -91,6 +94,7 @@ If discovery returns weak or sparse results:
 - Name the missing evidence.
 - Suggest a narrower mission/geography/grant-size search.
 - Do not pretend the shortlist is strong.
+- Keep weak candidates in the research-only section instead of the active pipeline.
 
 If sources appear stale:
 

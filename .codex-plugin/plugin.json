@@ -1,6 +1,6 @@
 {
   "name": "funder-discovery-plugin",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Discover, brief, score, and prioritize foundation prospects from public 990 data.",
   "author": {
     "name": "Wayan Vota"

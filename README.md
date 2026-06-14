@@ -10,7 +10,7 @@ The plugin combines five fundraising skills with public 990 data workflows:
 4. Fit Scoring: apply a transparent scoring rubric.
 5. Pipeline Builder: export a CSV or CRM-ready prospect pipeline with next actions.
 
-The repository now also includes a Custom GPT Actions pilot layer for nontechnical fundraiser testing. The pilot exposes a hosted REST API and OpenAPI schema so a Custom GPT can collect organization details, run discovery, score fit, generate briefs, and return a CRM-ready CSV without asking users to install MCP servers or use Developer Mode.
+The repository now also includes a Custom GPT Actions pilot layer for nontechnical fundraiser testing. The pilot exposes a hosted REST API and OpenAPI schema so a Custom GPT can collect organization details, run discovery, score fit, generate briefs, and return downloadable XLSX, CSV, and Markdown pipeline files without asking users to install MCP servers or use Developer Mode.
 
 ## Data Sources
 
@@ -18,7 +18,9 @@ The plugin includes a local `kindora` MCP server based on the public [wayanvota/
 
 This repository also includes a local `propublica990` MCP server that queries ProPublica Nonprofit Explorer public endpoints for nonprofit search, organization details, filing summaries, and PDF filing links.
 
-The important discipline is that the plugin does not treat a foundation name as a prospect by itself. It pushes the model to check fit signals, recent giving, grant size, geography, openness, and relationship path before recommending action.
+The important discipline is that the plugin does not treat a foundation name as a prospect by itself. It pushes the model to check fit signals, recent giving, grant size, geography, openness, similar-grantee evidence, and relationship path before recommending action.
+
+The Custom GPT Actions layer now applies a prospect-quality gate before building the pipeline. It classifies candidates as `direct_grant_prospect`, `relationship_first_prospect`, `partnership_or_intermediary`, `research_only`, or `reject`. Only direct and relationship-first prospects go into the active pipeline by default. Weaker candidates stay visible in a research-only section with the reason they were not promoted.
 
 ## Repository Layout
 
@@ -93,4 +95,4 @@ python3 /Users/wayanvota/.codex/skills/.system/plugin-creator/scripts/validate_p
 
 The plugin works with public filings and user-provided organizational details. Do not enter confidential donor strategy, private board notes, or personally sensitive relationship intelligence unless your ChatGPT or Codex workspace is approved for that data.
 
-Foundation filings can lag by more than a year, and 990 data rarely explains why a grant was made. Treat the score as a prioritization aid, not a decision engine.
+Foundation filings can lag by more than a year, and 990 data rarely explains why a grant was made. Treat the score as a prioritization aid, not a decision engine. A candidate with strong mission language but weak geography, grant-size, openness, or similar-grantee evidence should stay in research mode until those gaps are verified.

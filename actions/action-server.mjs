@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.4.2",
+    version: "0.5.0",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -200,6 +200,7 @@ const openApi = {
           questions: { type: "array", items: { type: "string" } },
           summary: { type: "string" },
           prospects: { type: "array", items: { type: "object", additionalProperties: true } },
+          researchOnlyProspects: { type: "array", items: { type: "object", additionalProperties: true } },
           briefs: { type: "array", items: { type: "object", additionalProperties: true } },
           pipelineRows: { type: "array", items: { type: "object", additionalProperties: true } },
           downloadLinks: { $ref: "#/components/schemas/DownloadLinks" },
@@ -268,9 +269,11 @@ const openApi = {
           opennessScore: { type: "integer" },
           relationshipPathScore: { type: "integer" },
           totalFitScore: { type: "integer" },
+          prospectCategory: { type: "string" },
           confidence: { type: "string" },
           rationale: { type: "string" },
           mainRisk: { type: "string" },
+          whyNot: { type: "string" },
           recommendedAsk: { type: "string" },
           nextAction: { type: "string" },
         },
@@ -359,10 +362,10 @@ const mockCandidates = [
     foundation_type: "independent_foundation",
     latest_filing_year: 2024,
     typical_grant_size: 90000,
-    focus_areas: ["civic participation", "youth leadership", "community organizing"],
-    geography: "National",
+    focus_areas: ["workforce readiness", "youth employment", "community opportunity"],
+    geography: "New York City and national demonstration projects",
     recent_grants: [
-      { recipient: "Young Leaders Table", amount: 100000, year: 2024, purpose: "Youth civic leadership" },
+      { recipient: "NYC Youth Career Pathways", amount: 100000, year: 2024, purpose: "Youth workforce training and job placement in New York City" },
     ],
     openness: "Concept notes accepted through intermediary referrals",
   },
@@ -511,67 +514,310 @@ function haystack(candidate) {
   return JSON.stringify(candidate ?? {}).toLowerCase();
 }
 
-function scoreProspect(profile, candidate) {
-  const grantRange = parseGrantRange(profile.desiredGrantSize);
-  const words = keywordSet(profile);
-  const candidateText = haystack(candidate);
-  const matchingKeywords = [...words].filter((word) => candidateText.includes(word));
-  const programFit = clamp(Math.round((matchingKeywords.length / Math.max(words.size, 1)) * 25) + (matchingKeywords.length >= 2 ? 6 : 0), 0, 25);
+function cleanWords(value) {
+  return text(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
 
-  const geographyTerms = text(profile.geographyServed).toLowerCase().split(/[,;/]|\band\b/).map((term) => term.trim()).filter(Boolean);
-  const geographyHits = geographyTerms.filter((term) => term.length > 1 && candidateText.includes(term));
-  const geographyFit = geographyHits.length > 0 || candidateText.includes("national") ? 17 : 8;
+function geographyTerms(profile) {
+  const raw = text(profile.geographyServed).toLowerCase();
+  const terms = raw
+    .split(/[,;/]|\band\b/)
+    .map((term) => term.trim())
+    .filter((term) => term.length > 1);
+  const expanded = new Set(terms);
+  if (/\bnyc\b|new york city|brooklyn|bronx|queens|manhattan|staten island/.test(raw)) {
+    ["new york city", "nyc", "new york", "ny"].forEach((term) => expanded.add(term));
+  }
+  if (/\bny\b|new york/.test(raw)) {
+    ["new york", "ny"].forEach((term) => expanded.add(term));
+  }
+  return [...expanded];
+}
 
+function recentGrants(candidate) {
+  return Array.isArray(candidate.recent_grants) ? candidate.recent_grants : [];
+}
+
+function grantAmount(grant) {
+  const amount = Number(grant.amount ?? grant.grant_amount ?? grant.cash_amount ?? grant.value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function grantText(grant) {
+  return [
+    grant.recipient,
+    grant.recipient_name,
+    grant.grantee,
+    grant.organization_name,
+    grant.city,
+    grant.state,
+    grant.location,
+    grant.purpose,
+    grant.description,
+    grant.grant_purpose,
+  ].map(text).join(" ").toLowerCase();
+}
+
+function grantsWithProgramEvidence(profile, candidate) {
+  const words = [...keywordSet(profile)];
+  return recentGrants(candidate).filter((grant) => {
+    const body = grantText(grant);
+    return words.filter((word) => body.includes(word)).length >= 2;
+  });
+}
+
+function grantsWithGeographyEvidence(profile, candidate) {
+  const terms = geographyTerms(profile);
+  return recentGrants(candidate).filter((grant) => {
+    const body = grantText(grant);
+    return terms.some((term) => body.includes(term));
+  });
+}
+
+function similarGranteeMatches(profile, candidate) {
+  const programMatches = new Set(grantsWithProgramEvidence(profile, candidate));
+  const geoMatches = new Set(grantsWithGeographyEvidence(profile, candidate));
+  return recentGrants(candidate)
+    .filter((grant) => programMatches.has(grant) || geoMatches.has(grant))
+    .slice(0, 4)
+    .map(compactGrant);
+}
+
+function opennessEvidence(candidate) {
+  const opennessText = text(candidate.openness ?? candidate.application_process ?? candidate.guidelines ?? candidate.website ?? "").toLowerCase();
+  if (/(invitation|invite only|invited|closed|family foundation|no unsolicited)/.test(opennessText)) {
+    return { score: 3, status: "invitation_or_closed" };
+  }
+  if (/(loi|letter of inquiry|public|open|application|rfp|request for proposals|inquiry form|contact form|apply)/.test(opennessText)) {
+    return { score: 14, status: "open_or_contactable" };
+  }
+  if (/(contact|staff|email|program officer)/.test(opennessText)) {
+    return { score: 10, status: "contact_path_visible" };
+  }
+  return { score: 6, status: "unclear" };
+}
+
+function grantSizeEvidence(profile, candidate) {
+  const range = parseGrantRange(profile.desiredGrantSize);
   const typicalGrant = Number(candidate.typical_grant_size ?? candidate.avg_grant_size ?? candidate.average_grant_size ?? candidate.median_grant_size ?? 0);
-  let grantSizeFit = 7;
+  const grantAmounts = recentGrants(candidate).map(grantAmount).filter((amount) => amount > 0);
+  const hasInRangeGrant = grantAmounts.some((amount) => amount >= range.min && amount <= range.max);
+  const hasNearRangeGrant = grantAmounts.some((amount) => amount >= range.min * 0.5 && amount <= range.max * 2);
+  if (hasInRangeGrant) {
+    return { score: 15, status: "recent_grant_in_range", typicalGrant, hasInRangeGrant, hasNearRangeGrant };
+  }
   if (Number.isFinite(typicalGrant) && typicalGrant > 0) {
-    if (typicalGrant >= grantRange.min && typicalGrant <= grantRange.max) {
-      grantSizeFit = 15;
-    } else if (typicalGrant >= grantRange.min * 0.5 && typicalGrant <= grantRange.max * 2) {
-      grantSizeFit = 11;
-    } else {
-      grantSizeFit = 5;
+    if (typicalGrant >= range.min && typicalGrant <= range.max) {
+      return { score: 15, status: "typical_grant_in_range", typicalGrant, hasInRangeGrant, hasNearRangeGrant };
+    }
+    if (typicalGrant >= range.min * 0.5 && typicalGrant <= range.max * 2) {
+      return { score: 10, status: "near_range", typicalGrant, hasInRangeGrant, hasNearRangeGrant: true };
+    }
+    if (typicalGrant > range.max * 3 && !hasNearRangeGrant) {
+      return { score: 2, status: "typical_grant_far_above_range", typicalGrant, hasInRangeGrant, hasNearRangeGrant };
+    }
+    if (typicalGrant < range.min * 0.5 && !hasNearRangeGrant) {
+      return { score: 4, status: "typical_grant_below_range", typicalGrant, hasInRangeGrant, hasNearRangeGrant };
     }
   }
+  if (hasNearRangeGrant) {
+    return { score: 10, status: "recent_grant_near_range", typicalGrant, hasInRangeGrant, hasNearRangeGrant };
+  }
+  return { score: 5, status: "grant_size_unclear", typicalGrant, hasInRangeGrant, hasNearRangeGrant };
+}
 
+function geographyEvidence(profile, candidate) {
+  const terms = geographyTerms(profile);
+  const body = haystack(candidate);
+  const grantMatches = grantsWithGeographyEvidence(profile, candidate);
+  const directHits = terms.filter((term) => term.length > 1 && body.includes(term));
+  if (grantMatches.length > 0) {
+    return { score: 20, status: "recent_grant_geography_match", hits: directHits, grantMatches };
+  }
+  if (directHits.length > 0) {
+    return { score: 17, status: "profile_geography_match", hits: directHits, grantMatches };
+  }
+  if (body.includes("national")) {
+    return { score: 10, status: "national_but_unconfirmed_local_fit", hits: [], grantMatches };
+  }
+  return { score: 3, status: "geography_not_confirmed", hits: [], grantMatches };
+}
+
+function programEvidence(profile, candidate) {
+  const words = [...keywordSet(profile)];
+  const candidateText = haystack(candidate);
+  const matchingKeywords = words.filter((word) => candidateText.includes(word));
+  const grantMatches = grantsWithProgramEvidence(profile, candidate);
+  if (grantMatches.length > 0) {
+    return {
+      score: clamp(17 + Math.min(grantMatches.length * 3, 8), 0, 25),
+      status: "recent_grant_program_match",
+      matchingKeywords,
+      grantMatches,
+    };
+  }
+  if (matchingKeywords.length >= 4) {
+    return { score: 18, status: "strong_profile_language_match", matchingKeywords, grantMatches };
+  }
+  if (matchingKeywords.length >= 2) {
+    return { score: 12, status: "partial_profile_language_match", matchingKeywords, grantMatches };
+  }
+  return { score: 3, status: "program_fit_not_visible", matchingKeywords, grantMatches };
+}
+
+function recencyEvidence(candidate) {
   const currentYear = new Date().getFullYear();
   const latestYear = Number(candidate.latest_filing_year ?? candidate.tax_prd_yr ?? candidate.tax_year ?? 0);
-  const recency = latestYear >= currentYear - 2 ? 15 : latestYear >= currentYear - 4 ? 10 : latestYear > 0 ? 5 : 4;
+  const grantYears = recentGrants(candidate).map((grant) => Number(grant.year ?? grant.tax_year ?? grant.filing_year)).filter(Number.isFinite);
+  const latestGrantYear = grantYears.length > 0 ? Math.max(...grantYears) : 0;
+  const latestEvidenceYear = Math.max(latestYear, latestGrantYear);
+  const score = latestEvidenceYear >= currentYear - 2 ? 15 : latestEvidenceYear >= currentYear - 4 ? 10 : latestEvidenceYear > 0 ? 5 : 3;
+  return { score, latestYear: latestEvidenceYear };
+}
 
-  const opennessText = text(candidate.openness ?? candidate.application_process ?? candidate.website ?? "").toLowerCase();
-  let openness = 6;
-  if (/(public|open|loi|inquiry|application|rfp|contact|form)/.test(opennessText)) {
-    openness = 13;
-  } else if (/(invitation|invite|family|closed)/.test(opennessText)) {
-    openness = 3;
-  }
-
+function relationshipEvidence(profile, candidate) {
   const relationshipAssets = text(profile.relationshipAssets).toLowerCase();
-  let relationshipPath = relationshipAssets.length > 0 ? 6 : 2;
-  if (relationshipAssets && candidateText.split(/\W+/).some((token) => token.length > 4 && relationshipAssets.includes(token))) {
-    relationshipPath = 9;
+  if (!relationshipAssets) {
+    return { score: 2, status: "no_relationship_assets_supplied" };
+  }
+  const tokens = cleanWords(candidate.name).filter((token) => token.length > 4);
+  const hasTokenMatch = tokens.some((token) => relationshipAssets.includes(token));
+  if (hasTokenMatch || /board|trustee|program officer|staff|peer grantee|funder|workforce/.test(relationshipAssets)) {
+    return { score: 8, status: "relationship_path_plausible" };
+  }
+  return { score: 5, status: "relationship_assets_supplied_but_unmatched" };
+}
+
+function funderTypeStatus(candidate) {
+  const body = text(candidate.foundation_type ?? candidate.funder_type ?? candidate.type ?? candidate.ntee_description ?? candidate.name).toLowerCase();
+  if (/(operating|public charity|intermediary|council|association|jobs for the future)/.test(body)) {
+    return "partnership_or_intermediary";
+  }
+  if (/(foundation|trust|fund|corporate giving|private foundation|family foundation|independent)/.test(body)) {
+    return "grantmaker";
+  }
+  if (candidate.annual_grants || candidate.typical_grant_size || recentGrants(candidate).length > 0) {
+    return "grantmaker_evidence";
+  }
+  return "unclear";
+}
+
+function qualityGateProspect(profile, candidate, evidence) {
+  const disqualifiers = [];
+  const cautions = [];
+  const flags = {
+    program: evidence.program.status,
+    geography: evidence.geography.status,
+    grantSize: evidence.grantSize.status,
+    recency: evidence.recency.latestYear || "missing",
+    openness: evidence.openness.status,
+    relationship: evidence.relationship.status,
+    funderType: evidence.funderType,
+    similarGrantees: evidence.similarMatches.length,
+  };
+
+  if (evidence.funderType === "unclear") {
+    cautions.push("Grantmaker status is unclear in available data.");
+  }
+  if (evidence.funderType === "partnership_or_intermediary") {
+    cautions.push("May be a partnership or intermediary target rather than a direct foundation prospect.");
+  }
+  if (evidence.program.score < 10) {
+    disqualifiers.push("Program fit is weak or not visible in recent grants.");
+  }
+  if (evidence.geography.score < 8) {
+    disqualifiers.push("No clear geography evidence for the user's service area.");
+  } else if (evidence.geography.status === "national_but_unconfirmed_local_fit") {
+    cautions.push("National scope is visible, but local funding evidence is not confirmed.");
+  }
+  if (evidence.grantSize.status === "typical_grant_far_above_range") {
+    cautions.push("Typical grant size appears far above the user's target range.");
+  }
+  if (evidence.grantSize.score <= 4) {
+    disqualifiers.push("Grant-size fit is weak or outside the requested range.");
+  }
+  if (evidence.recency.score <= 5) {
+    cautions.push("Recent filing or grant evidence is stale or missing.");
+  }
+  if (evidence.openness.status === "invitation_or_closed") {
+    cautions.push("Access appears invitation-only or closed.");
   }
 
-  const totalFitScore = programFit + geographyFit + grantSizeFit + recency + openness + relationshipPath;
-  const evidenceCount = [
-    matchingKeywords.length > 0,
-    geographyHits.length > 0,
-    typicalGrant > 0,
-    latestYear > 0,
-    candidate.recent_grants || candidate.grants,
-  ].filter(Boolean).length;
+  let prospectCategory = "direct_grant_prospect";
+  if (disqualifiers.length > 0) {
+    prospectCategory = "reject";
+  } else if (evidence.funderType === "partnership_or_intermediary") {
+    prospectCategory = "partnership_or_intermediary";
+  } else if (evidence.openness.status === "invitation_or_closed") {
+    prospectCategory = "relationship_first_prospect";
+  } else if (cautions.length >= 2 || evidence.similarMatches.length === 0) {
+    prospectCategory = "research_only";
+  }
 
   return {
-    programFitScore: programFit,
-    geographyFitScore: geographyFit,
-    grantSizeFitScore: grantSizeFit,
-    recencyScore: recency,
-    opennessScore: openness,
-    relationshipPathScore: relationshipPath,
+    prospectCategory,
+    disqualified: prospectCategory === "reject",
+    disqualifiers,
+    cautions,
+    evidenceFlags: flags,
+    similarGranteeMatches: evidence.similarMatches,
+    whyNot: [...disqualifiers, ...cautions].slice(0, 3).join(" ") || "No major fit concern found in available data.",
+  };
+}
+
+function confidenceForEvidence(gate, evidence) {
+  const essentials = [
+    evidence.program.score >= 17,
+    evidence.geography.score >= 17,
+    evidence.grantSize.score >= 10,
+    evidence.recency.score >= 10,
+    evidence.similarMatches.length > 0,
+  ].filter(Boolean).length;
+  if (gate.prospectCategory === "direct_grant_prospect" && essentials >= 4) {
+    return "High";
+  }
+  if (["direct_grant_prospect", "relationship_first_prospect"].includes(gate.prospectCategory) && essentials >= 3) {
+    return "Medium";
+  }
+  return "Low";
+}
+
+function scoreProspect(profile, candidate) {
+  const evidence = {
+    program: programEvidence(profile, candidate),
+    geography: geographyEvidence(profile, candidate),
+    grantSize: grantSizeEvidence(profile, candidate),
+    recency: recencyEvidence(candidate),
+    openness: opennessEvidence(candidate),
+    relationship: relationshipEvidence(profile, candidate),
+    funderType: funderTypeStatus(candidate),
+    similarMatches: similarGranteeMatches(profile, candidate),
+  };
+  const gate = qualityGateProspect(profile, candidate, evidence);
+  const totalFitScore = evidence.program.score + evidence.geography.score + evidence.grantSize.score + evidence.recency.score + evidence.openness.score + evidence.relationship.score;
+
+  return {
+    programFitScore: evidence.program.score,
+    geographyFitScore: evidence.geography.score,
+    grantSizeFitScore: evidence.grantSize.score,
+    recencyScore: evidence.recency.score,
+    opennessScore: evidence.openness.score,
+    relationshipPathScore: evidence.relationship.score,
     totalFitScore,
-    confidence: evidenceCount >= 4 ? "High" : evidenceCount >= 2 ? "Medium" : "Low",
-    rationale: buildRationale(candidate, matchingKeywords, geographyHits, typicalGrant, latestYear),
-    mainRisk: buildRisk(candidate, matchingKeywords, geographyHits),
+    confidence: confidenceForEvidence(gate, evidence),
+    prospectCategory: gate.prospectCategory,
+    disqualified: gate.disqualified,
+    disqualifiers: gate.disqualifiers,
+    cautions: gate.cautions,
+    evidenceFlags: gate.evidenceFlags,
+    similarGranteeMatches: gate.similarGranteeMatches,
+    whyNot: gate.whyNot,
+    rationale: buildRationale(candidate, evidence),
+    mainRisk: buildRisk(candidate, gate),
   };
 }
 
@@ -579,29 +825,33 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function buildRationale(candidate, matchingKeywords, geographyHits, typicalGrant, latestYear) {
+function buildRationale(candidate, evidence) {
   const parts = [];
-  if (matchingKeywords.length > 0) {
-    parts.push(`Program language overlaps on ${matchingKeywords.slice(0, 5).join(", ")}.`);
+  if (evidence.program.grantMatches.length > 0) {
+    parts.push(`${evidence.program.grantMatches.length} recent grant(s) show program fit.`);
+  } else if (evidence.program.matchingKeywords.length > 0) {
+    parts.push(`Program language overlaps on ${evidence.program.matchingKeywords.slice(0, 5).join(", ")}.`);
   }
-  if (geographyHits.length > 0) {
-    parts.push(`Geography evidence mentions ${geographyHits.slice(0, 3).join(", ")}.`);
+  if (evidence.geography.grantMatches.length > 0) {
+    parts.push(`${evidence.geography.grantMatches.length} recent grant(s) show geography fit.`);
+  } else if (evidence.geography.hits.length > 0) {
+    parts.push(`Geography evidence mentions ${evidence.geography.hits.slice(0, 3).join(", ")}.`);
   }
-  if (typicalGrant > 0) {
-    parts.push(`Typical grant size appears near ${formatMoney(typicalGrant)}.`);
+  if (evidence.grantSize.typicalGrant > 0) {
+    parts.push(`Typical grant size appears near ${formatMoney(evidence.grantSize.typicalGrant)}.`);
   }
-  if (latestYear > 0) {
-    parts.push(`Latest filing or grant evidence reviewed: ${latestYear}.`);
+  if (evidence.recency.latestYear > 0) {
+    parts.push(`Latest filing or grant evidence reviewed: ${evidence.recency.latestYear}.`);
   }
   return parts.join(" ") || `Candidate has limited structured evidence and needs manual review.`;
 }
 
-function buildRisk(candidate, matchingKeywords, geographyHits) {
-  if (matchingKeywords.length === 0) {
-    return "Program fit is weak or not visible in available data.";
+function buildRisk(candidate, gate) {
+  if (gate.disqualifiers.length > 0) {
+    return gate.disqualifiers[0];
   }
-  if (geographyHits.length === 0 && !haystack(candidate).includes("national")) {
-    return "Geography fit is plausible but not confirmed.";
+  if (gate.cautions.length > 0) {
+    return gate.cautions[0];
   }
   if (/(invitation|invite|closed)/i.test(text(candidate.openness))) {
     return "Access may be relationship-driven or invitation-only.";
@@ -687,17 +937,17 @@ async function discoverCandidates(profile, options) {
     return { candidates: mockCandidates, sourceNotes: ["Using mock data for deterministic pilot testing."] };
   }
 
-  const queries = buildSearchQueries(profile);
+  const queries = buildSearchQueries(profile, options?.secondPassOnly ? "local" : "primary");
   const candidates = new Map();
   const sourceNotes = [];
   for (const query of queries) {
     try {
       const result = await callKindoraTool("search_funders", {
         query,
-        limit: Math.min(Number(options?.maxProspects ?? 8), 20),
+        limit: Math.min(Math.max(Number(options?.maxProspects ?? 8), 6), 12),
         exclude_funder_types: ["operating_nonprofit"],
       });
-      sourceNotes.push(`Kindora search_funders query: ${query}`);
+      sourceNotes.push(`${options?.secondPassOnly ? "Second-pass local" : "Primary"} Kindora search_funders query: ${query}`);
       for (const candidate of extractCandidates(result)) {
         const key = text(candidate.ein ?? candidate.EIN ?? candidate.name ?? candidate.legal_name);
         if (key && !candidates.has(key)) {
@@ -708,7 +958,8 @@ async function discoverCandidates(profile, options) {
       sourceNotes.push(`Kindora search failed for "${query}": ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  const initial = [...candidates.values()].slice(0, clamp(Number(options?.maxProspects ?? 6), 3, 8));
+  const maxPool = clamp(Number(options?.maxProspects ?? 6) * 4, 8, 32);
+  const initial = [...candidates.values()].slice(0, maxPool);
   const detailed = [];
   for (const candidate of initial) {
     detailed.push(await enrichCandidate(candidate, profile, sourceNotes));
@@ -716,7 +967,7 @@ async function discoverCandidates(profile, options) {
   return { candidates: detailed, sourceNotes };
 }
 
-function buildSearchQueries(profile) {
+function buildSearchQueries(profile, mode = "primary") {
   const base = [
     text(profile.programsOrFundingNeeds),
     text(profile.mission),
@@ -725,11 +976,32 @@ function buildSearchQueries(profile) {
   const compact = [...new Set(base.map((item) => item.split(/[.;]/)[0].trim()).filter(Boolean))];
   const primary = compact[0] ?? "nonprofit community programs";
   const secondary = compact[1] ?? compact[0] ?? "nonprofit grants";
-  return [
+  const geo = text(profile.geographyServed).trim();
+  const geoList = geographyTerms(profile);
+  const localGeo = geoList.find((term) => term.includes("new york city")) ?? geoList[0] ?? geo;
+  const programWords = [...keywordSet(profile)];
+  const workforceHint = programWords.some((word) => /(workforce|career|jobs|employment|skills|training|digital)/.test(word));
+  const beneficiaryHint = text(profile.beneficiaries) || "community";
+  const primaryQueries = [
     primary,
-    `${primary} ${text(profile.geographyServed)}`.trim(),
+    `${primary} foundation grants`.trim(),
+    `${primary} ${geo}`.trim(),
     secondary,
-  ].slice(0, 3);
+    `${beneficiaryHint} ${primary}`.trim(),
+  ];
+  const localQueries = [
+    `${localGeo} ${primary} foundation grants`.trim(),
+    `${localGeo} ${beneficiaryHint} grants`.trim(),
+    `${localGeo} career pathways philanthropy`.trim(),
+    `${localGeo} youth employment foundation grants`.trim(),
+    `${localGeo} digital skills foundation grants`.trim(),
+    `${localGeo} workforce development foundation grants`.trim(),
+  ];
+  if (workforceHint) {
+    localQueries.unshift(`${localGeo} workforce training grants young adults`);
+  }
+  const selected = mode === "local" ? localQueries : primaryQueries;
+  return [...new Set(selected.map((query) => query.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, mode === "local" ? 6 : 5);
 }
 
 function extractCandidates(result) {
@@ -898,10 +1170,12 @@ function buildBrief(profile, prospect, rank) {
       recentGrants: grants.length > 0 ? grants : "Not found in available data",
     },
     fitSignals: {
+      prospectCategory: prospect.prospectCategory,
       programFit: prospect.rationale,
       geographyFit: `Compared against user geography: ${text(profile.geographyServed)}`,
       askRangeFit: `Compared against desired grant size: ${text(profile.desiredGrantSize)}`,
       relationshipPath: text(profile.relationshipAssets) || "No relationship path supplied yet",
+      similarGrantees: prospect.similarGranteeMatches ?? [],
     },
     recommendedMove: {
       nextAction: nextActionFor(prospect),
@@ -909,6 +1183,7 @@ function buildBrief(profile, prospect, rank) {
       confidence: prospect.confidence,
     },
     risk: prospect.mainRisk,
+    whyNot: prospect.whyNot,
   };
 }
 
@@ -962,9 +1237,13 @@ function compactProspect(prospect, rank, profile) {
     opennessScore: prospect.opennessScore,
     relationshipPathScore: prospect.relationshipPathScore,
     totalFitScore: prospect.totalFitScore,
+    prospectCategory: prospect.prospectCategory,
     confidence: prospect.confidence,
+    evidenceFlags: prospect.evidenceFlags ?? {},
+    similarGranteeMatches: prospect.similarGranteeMatches ?? [],
     rationale: compactValue(prospect.rationale, 300),
     mainRisk: compactValue(prospect.mainRisk, 220),
+    whyNot: compactValue(prospect.whyNot, 260),
     recommendedAsk: recommendedAsk(prospect, profile),
     nextAction: nextActionFor(prospect),
     source_links: [prospect.website, prospect.filing_pdf_url].filter(Boolean).join(" "),
@@ -972,6 +1251,15 @@ function compactProspect(prospect, rank, profile) {
 }
 
 function nextActionFor(prospect) {
+  if (prospect.prospectCategory === "reject") {
+    return "Do not prioritize unless new evidence resolves the disqualifier.";
+  }
+  if (prospect.prospectCategory === "research_only") {
+    return "Verify similar grantees, geography, and application pathway before adding to active outreach.";
+  }
+  if (prospect.prospectCategory === "partnership_or_intermediary") {
+    return "Explore partnership, cohort, or subgrant path rather than a standard foundation ask.";
+  }
   if (prospect.confidence === "High" && prospect.opennessScore >= 8) {
     return "Verify current guidelines and draft a short LOI concept.";
   }
@@ -987,7 +1275,16 @@ function nextActionFor(prospect) {
 function recommendedAsk(prospect, profile) {
   const range = parseGrantRange(profile.desiredGrantSize);
   const typical = Number(prospect.typical_grant_size);
+  if (prospect.prospectCategory === "reject" || prospect.prospectCategory === "research_only") {
+    return "Research before setting ask";
+  }
+  if (prospect.prospectCategory === "partnership_or_intermediary") {
+    return "Partnership or subgrant path, not direct ask";
+  }
   if (Number.isFinite(typical) && typical > 0) {
+    if (range.max && typical > range.max * 3 && prospect.grantSizeFitScore <= 4) {
+      return `${formatMoney(range.max)} exploratory ceiling`;
+    }
     const low = Math.round(Math.max(range.min || typical * 0.6, typical * 0.75) / 1000) * 1000;
     const high = Math.round(Math.min(range.max || typical * 1.25, typical * 1.25) / 1000) * 1000;
     return low && high && low <= high ? `${formatMoney(low)}-${formatMoney(high)}` : formatMoney(typical);
@@ -1020,8 +1317,9 @@ function buildPipelineRows(profile, prospects, ownerDefault = "Unassigned") {
     openness_score: prospect.opennessScore,
     relationship_path_score: prospect.relationshipPathScore,
     total_fit_score: prospect.totalFitScore,
+    prospect_category: prospect.prospectCategory ?? "",
     confidence: prospect.confidence,
-    stage: prospect.totalFitScore >= 75 ? "Outreach Prep" : prospect.totalFitScore >= 60 ? "Relationship Mapping" : "Research",
+    stage: prospect.prospectCategory === "direct_grant_prospect" && prospect.totalFitScore >= 75 ? "Outreach Prep" : prospect.prospectCategory === "relationship_first_prospect" ? "Relationship Mapping" : "Research",
     recommended_ask: recommendedAsk(prospect, profile),
     next_action: nextActionFor(prospect),
     owner: profile.ownerNames?.[index % profile.ownerNames.length] ?? ownerDefault,
@@ -1029,6 +1327,8 @@ function buildPipelineRows(profile, prospects, ownerDefault = "Unassigned") {
     relationship_path: text(profile.relationshipAssets) || "None supplied",
     evidence_summary: prospect.rationale,
     main_risk: prospect.mainRisk,
+    why_not: prospect.whyNot ?? "",
+    similar_grantee_matches: compactList(prospect.similarGranteeMatches, 3),
     source_links: [prospect.website, prospect.filing_pdf_url].filter(Boolean).join(" "),
   }));
 }
@@ -1052,7 +1352,7 @@ function rowsToCsv(rows) {
   ].join("\n");
 }
 
-function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNotes) {
+function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNotes, researchOnlyProspects = []) {
   const lines = [
     `# Funder Discovery Pipeline`,
     "",
@@ -1073,6 +1373,14 @@ function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNot
       escapeMarkdownTable(prospect.mainRisk),
     ].join(" | ")).map((row) => `| ${row} |`),
     "",
+    "## Research-Only Candidates",
+    "",
+    "| Candidate | Category | Main Reason |",
+    "|---|---|---|",
+    ...(researchOnlyProspects.length > 0
+      ? researchOnlyProspects.map((prospect) => `| ${escapeMarkdownTable(prospect.name)} | ${escapeMarkdownTable(prospect.prospectCategory)} | ${escapeMarkdownTable(prospect.whyNot || prospect.mainRisk)} |`)
+      : ["| None |  |  |"]),
+    "",
     "## Funder Briefs",
     "",
   ];
@@ -1082,6 +1390,7 @@ function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNot
       "",
       `- EIN: ${brief.ein ?? "Not found"}`,
       `- Location: ${brief.snapshot?.location ?? "Not found"}`,
+      `- Category: ${brief.fitSignals?.prospectCategory ?? "Not classified"}`,
       `- Latest filing year: ${brief.snapshot?.latestFilingYear ?? "Not found"}`,
       `- Assets: ${brief.financialCapacity?.assets ?? "Not found"}`,
       `- Annual grants paid: ${brief.financialCapacity?.annualGrantsPaid ?? "Not found"}`,
@@ -1089,6 +1398,7 @@ function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNot
       `- Fit signal: ${brief.fitSignals?.programFit ?? "Not found"}`,
       `- Recommended move: ${brief.recommendedMove?.nextAction ?? "Verify current guidelines"}`,
       `- Risk: ${brief.risk ?? "Verify before outreach"}`,
+      `- Why not / caution: ${brief.whyNot ?? "No major fit concern found in available data."}`,
       "",
     );
   }
@@ -1367,25 +1677,39 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
     };
   }
 
-  const { candidates, sourceNotes } = await discoverCandidates(profile, options);
-  const scored = candidates
-    .map((candidate) => ({ ...candidate, ...scoreProspect(profile, candidate) }))
-    .sort((a, b) => b.totalFitScore - a.totalFitScore);
+  const firstPass = await discoverCandidates(profile, options);
+  let candidates = firstPass.candidates;
+  const sourceNotes = [...firstPass.sourceNotes];
   const shortlistSize = clamp(Number(options.shortlistSize ?? 5), 3, 8);
-  const prospects = scored.slice(0, shortlistSize);
+  let scored = rankProspects(candidates.map((candidate) => ({ ...candidate, ...scoreProspect(profile, candidate) })));
+  let activeCandidates = activePipelineProspects(scored);
+  if (!USE_MOCK_DATA && !options?.mockMode && activeCandidates.length < shortlistSize) {
+    const secondPass = await discoverCandidates(profile, { ...options, secondPassOnly: true });
+    sourceNotes.push(`Second-pass local search triggered because only ${activeCandidates.length} active prospect(s) passed the quality gate.`);
+    candidates = mergeCandidates(candidates, secondPass.candidates);
+    sourceNotes.push(...secondPass.sourceNotes);
+    scored = rankProspects(candidates.map((candidate) => ({ ...candidate, ...scoreProspect(profile, candidate) })));
+    activeCandidates = activePipelineProspects(scored);
+  }
+  const prospects = activeCandidates.slice(0, shortlistSize);
+  const researchOnlyProspects = scored
+    .filter((prospect) => !["direct_grant_prospect", "relationship_first_prospect"].includes(prospect.prospectCategory))
+    .slice(0, 8);
   const briefs = prospects.map((prospect, index) => buildBrief(profile, prospect, index + 1));
   const pipelineRows = buildPipelineRows(profile, prospects, options.ownerDefault ?? "Unassigned");
   const csv = rowsToCsv(pipelineRows);
-  const status = sourceNotes.some((note) => /failed/i.test(note)) ? "partial" : "complete";
+  const status = sourceNotes.some((note) => /failed/i.test(note)) || prospects.length < 3 ? "partial" : "complete";
   const compactProspects = prospects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
+  const compactResearchOnly = researchOnlyProspects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
   const cappedSourceNotes = [
     ...sourceNotes.slice(0, 12),
     "Foundation filings can lag. Verify current guidelines, contact paths, and invitation status before outreach.",
   ];
-  const markdown = buildMarkdownReport(profile, compactProspects, briefs, pipelineRows, cappedSourceNotes);
+  const markdown = buildMarkdownReport(profile, compactProspects, briefs, pipelineRows, cappedSourceNotes, compactResearchOnly);
   const downloadLinks = storeArtifacts({
     profile,
     prospects: compactProspects,
+    researchOnlyProspects: compactResearchOnly,
     briefs,
     pipelineRows,
     csv,
@@ -1396,6 +1720,7 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
     status,
     summary: `Shortlisted ${prospects.length} foundation prospects for ${profile.organizationName ?? "the organization"}. Scores are prioritization aids, not final grant strategy.`,
     prospects: compactProspects,
+    researchOnlyProspects: compactResearchOnly,
     briefs,
     pipelineRows,
     downloadLinks,
@@ -1403,10 +1728,47 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
     testObservations: [
       `Profile completeness score: ${profileCheck.completenessScore}.`,
       `Strongest candidate: ${prospects[0]?.name ?? "none"}.`,
+      `Active prospects passing quality gate: ${activeCandidates.length}.`,
+      `Research-only or rejected candidates: ${researchOnlyProspects.length}.`,
       `Lowest-confidence shortlisted candidate: ${prospects.slice().sort((a, b) => confidenceRank(a.confidence) - confidenceRank(b.confidence))[0]?.name ?? "none"}.`,
     ],
     sourceNotes: cappedSourceNotes,
   };
+}
+
+function mergeCandidates(primary, secondary) {
+  const merged = new Map();
+  for (const candidate of [...primary, ...secondary]) {
+    const key = text(candidate.ein ?? candidate.EIN ?? candidate.name ?? candidate.legal_name);
+    if (key && !merged.has(key)) {
+      merged.set(key, candidate);
+    }
+  }
+  return [...merged.values()];
+}
+
+function rankProspects(prospects) {
+  return prospects.sort((a, b) => {
+    const categoryDelta = categoryRank(a.prospectCategory) - categoryRank(b.prospectCategory);
+    if (categoryDelta !== 0) {
+      return categoryDelta;
+    }
+    return b.totalFitScore - a.totalFitScore;
+  });
+}
+
+function categoryRank(category) {
+  return {
+    direct_grant_prospect: 0,
+    relationship_first_prospect: 1,
+    partnership_or_intermediary: 2,
+    research_only: 3,
+    reject: 4,
+  }[category] ?? 5;
+}
+
+function activePipelineProspects(prospects) {
+  return prospects.filter((prospect) => ["direct_grant_prospect", "relationship_first_prospect"].includes(prospect.prospectCategory));
 }
 
 function confidenceRank(confidence) {
@@ -1443,9 +1805,9 @@ async function handleRoute(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/api/score") {
       const body = await readJson(req);
-      const prospects = (body.prospects ?? [])
-        .map((candidate) => ({ ...candidate, ...scoreProspect(body.organizationProfile ?? {}, candidate) }))
-        .sort((a, b) => b.totalFitScore - a.totalFitScore)
+      const prospects = rankProspects(
+        (body.prospects ?? []).map((candidate) => ({ ...candidate, ...scoreProspect(body.organizationProfile ?? {}, candidate) })),
+      )
         .map((prospect, index) => compactProspect(prospect, index + 1, body.organizationProfile ?? {}));
       return sendJson(res, 200, { prospects });
     }

@@ -46,6 +46,18 @@ if (!["complete", "partial"].includes(complete.status)) {
 if (!Array.isArray(complete.prospects) || complete.prospects.length < 3) {
   throw new Error("Discovery did not return enough prospects.");
 }
+if (complete.prospects.some((prospect) => !["direct_grant_prospect", "relationship_first_prospect"].includes(prospect.prospectCategory))) {
+  throw new Error("Active pipeline includes a prospect that did not pass the active quality gate.");
+}
+if (!complete.prospects.every((prospect) => prospect.evidenceFlags && prospect.whyNot && Array.isArray(prospect.similarGranteeMatches))) {
+  throw new Error("Quality-gated prospects are missing evidence flags, why-not reasons, or similar-grantee matches.");
+}
+if (!Array.isArray(complete.researchOnlyProspects) || complete.researchOnlyProspects.length === 0) {
+  throw new Error("Discovery did not return research-only or rejected candidates for review.");
+}
+if (!complete.researchOnlyProspects.some((prospect) => ["research_only", "partnership_or_intermediary", "reject"].includes(prospect.prospectCategory))) {
+  throw new Error("Research-only candidates are missing quality-gate categories.");
+}
 if (!complete.downloadLinks?.csv || !complete.downloadLinks?.markdown || !complete.downloadLinks?.xlsx) {
   throw new Error("Discovery did not return CSV, Markdown, and XLSX download links.");
 }
