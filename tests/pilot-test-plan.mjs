@@ -85,6 +85,65 @@ assert(sfFallback.prospects.length >= 3, "SF regional fallback should create a u
 assert(sfFallback.prospects.some((prospect) => /San Francisco Foundation|Tipping Point|Haas/i.test(prospect.name)), "SF fallback should include recognizable Bay Area funders.");
 assert(sfFallback.prospects.every((prospect) => /San Francisco|Bay Area/i.test(`${prospect.location} ${prospect.geography} ${prospect.source_label}`)), "SF fallback prospects should carry local geography labels.");
 
+const triangleYmcaFallback = await runDiscovery({
+  organizationProfile: {
+    organizationName: "YMCA of the Triangle Area",
+    mission: "Community-based YMCA focused on youth development, healthy living, and social responsibility.",
+    programsOrFundingNeeds: "Program support for youth development, camp scholarships, swim safety, after-school programs, youth sports, and family programs.",
+    geographyServed: "Raleigh, Durham, Cary, Wake County, and the Triangle region of North Carolina",
+    beneficiaries: "Children, teens, families, and communities needing affordable youth and wellness programs.",
+    desiredGrantSize: { min: 50000, max: 150000 },
+    fundingType: "Program support",
+  },
+  options: { shortlistSize: 5, regionalFallbackOnly: true },
+});
+assert(triangleYmcaFallback.prospects.length >= 5, "Triangle YMCA fallback should return a usable shortlist.");
+assert(triangleYmcaFallback.prospects.every((prospect) => prospect.source_type === "regional_fallback_seed"), "Triangle YMCA prospects should be regional fallback seeds.");
+assert(triangleYmcaFallback.prospects.some((prospect) => /Holding|Finley|United Way|ChildTrust|Cannon/i.test(prospect.name)), "Triangle YMCA fallback should include benchmark Triangle funders.");
+assert(triangleYmcaFallback.prospects.some((prospect) => /YMCA of the Triangle/i.test(JSON.stringify(prospect.similarGranteeMatches))), "Triangle YMCA fallback should expose prior-funder benchmark evidence.");
+
+const techSoupProfile = {
+  organizationName: "Network for Good / TechSoup context",
+  website: "https://www.techsoup.org/",
+  mission: "Help nonprofits access donated and discounted technology, training, implementation support, and fundraising infrastructure.",
+  programsOrFundingNeeds: "Program support for nonprofit technology access, digital capacity building, fundraising infrastructure, and support for small and mid-sized nonprofits.",
+  geographyServed: "United States with a Washington DC nonprofit and fundraising infrastructure context",
+  beneficiaries: "Nonprofit organizations, social sector staff, and donors using technology to raise money and operate better.",
+  desiredGrantSize: { min: 50000, max: 250000 },
+  fundingType: "Program support",
+};
+const techSoupQueries = buildSearchQueries(techSoupProfile, "primary");
+assert(techSoupQueries.some((query) => /nonprofit technology|TechSoup|Network for Good|fundraising infrastructure/i.test(query)), "TechSoup search queries should include nonprofit technology and fundraising infrastructure terms.");
+const techSoupFallback = await runDiscovery({
+  organizationProfile: techSoupProfile,
+  options: { shortlistSize: 5, causeFallbackOnly: true },
+});
+assert(techSoupFallback.prospects.length >= 5, "TechSoup/Network for Good fallback should return a usable shortlist.");
+assert(techSoupFallback.prospects.some((prospect) => /Gates|Every|GlobalGiving|Old Oak/i.test(prospect.name)), "TechSoup fallback should include benchmark direct funders.");
+assert(techSoupFallback.prospects.some((prospect) => /Knight|Omidyar/i.test(prospect.name)), "TechSoup fallback should include new research candidates.");
+assert(techSoupFallback.prospects.some((prospect) => /Network for Good/i.test(JSON.stringify(prospect.similarGranteeMatches))), "TechSoup fallback should expose prior-funder benchmark evidence.");
+
+const digitalGreenProfile = {
+  organizationName: "Digital Green Foundation",
+  website: "https://digitalgreen.org/",
+  mission: "Support small-scale farmers with AI-enabled, locally relevant agricultural advice and climate-smart farming guidance.",
+  programsOrFundingNeeds: "Program support for digital agriculture, AI tools for smallholder farmers, climate-smart agriculture, farmer livelihoods, and scaling advisory systems with government and partner networks.",
+  geographyServed: "Global smallholder farmer communities, especially low- and middle-income country agriculture contexts",
+  beneficiaries: "Smallholder farmers, women farmers, agricultural extension partners, and rural communities.",
+  desiredGrantSize: { min: 250000, max: 1000000 },
+  fundingType: "Program support",
+};
+const digitalGreenQueries = buildSearchQueries(digitalGreenProfile, "primary");
+assert(digitalGreenQueries.some((query) => /digital agriculture|smallholder|Digital Green|FarmerChat/i.test(query)), "Digital Green search queries should include digital agriculture and smallholder terms.");
+const digitalGreenFallback = await runDiscovery({
+  organizationProfile: digitalGreenProfile,
+  options: { shortlistSize: 5, causeFallbackOnly: true },
+});
+assert(digitalGreenFallback.prospects.length >= 5, "Digital Green fallback should return a usable shortlist.");
+assert(digitalGreenFallback.prospects.some((prospect) => /Gates|Walmart|Mulago|Rockefeller|McGovern/i.test(prospect.name)), "Digital Green fallback should include benchmark direct funders.");
+assert(digitalGreenFallback.prospects.some((prospect) => /IKEA|Mastercard/i.test(prospect.name)), "Digital Green fallback should include new research candidates.");
+assert(digitalGreenFallback.prospects.some((prospect) => /Digital Green Foundation/i.test(JSON.stringify(prospect.similarGranteeMatches))), "Digital Green fallback should expose prior-funder benchmark evidence.");
+
 const intelehealthProfile = {
   organizationName: "Intelehealth",
   website: "https://Intelehealth.org",

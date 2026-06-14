@@ -34,6 +34,14 @@ The action server also includes a deterministic cause fallback for global health
 
 Cause fallback candidates are labeled `cause_fallback_seed`, returned as low-confidence relationship-first prospects, and marked `partial`. The response includes guideline status, invitation status, grant-size fit notes, and peer-signal prompts, but these are starter diligence notes, not verified current grants. Use `disableCauseFallback: true` to turn this off, or `causeFallbackOnly: true` for deterministic demo tests.
 
+The fallback layer also covers three benchmark demo archetypes:
+
+- Raleigh-Durham Triangle youth/YMCA profiles, seeded from user-provided YMCA of the Triangle benchmark funders.
+- Nonprofit technology, online giving, and fundraising infrastructure profiles, seeded from user-provided Network for Good benchmark funders plus new research candidates.
+- Digital agriculture and smallholder farmer profiles, seeded from user-provided Digital Green benchmark funders plus new research candidates with co-funded-peer signals.
+
+These benchmark seeds are not a substitute for live diligence. They prevent empty demo pipelines when live search misses obvious prior funders, and they keep verification language in the output.
+
 ## Local Run
 
 Mock mode, deterministic:

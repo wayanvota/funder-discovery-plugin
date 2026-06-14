@@ -381,6 +381,113 @@ const mockCandidates = [
 ];
 
 const regionalFallbackCatalog = {
+  triangle_nc: {
+    label: "Raleigh-Durham Triangle, North Carolina",
+    aliases: [/raleigh/i, /durham/i, /cary/i, /wake county/i, /triangle region/i, /\btriangle\b/i, /north carolina/i, /\bnc\b/i],
+    candidates: [
+      {
+        name: "The Robert P. Holding Foundation",
+        location: "Raleigh, NC",
+        geography: "Raleigh, Wake County, and North Carolina",
+        focus_areas: ["youth development", "education", "community services", "family support"],
+        typical_grant_size: 100000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Regional seed from user-provided benchmark data. Verify current application process before outreach.",
+        invitationStatus: "Verify whether applications are open or relationship-led.",
+        grantSizeFitNote: "Benchmark data showed multiple grants to YMCA of the Triangle, including a 2024 latest-year total above the requested range. A $50,000-$150,000 request may still be plausible if scoped tightly.",
+        recent_grants: [
+          {
+            recipient: "YMCA of the Triangle Area",
+            amount: 334000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for YMCA of the Triangle Area youth development, camp, swim safety, and family programs.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "A. E. Finley Foundation",
+        location: "Raleigh, NC",
+        geography: "Raleigh, Wake County, and North Carolina",
+        focus_areas: ["youth development", "education", "health", "community services"],
+        typical_grant_size: 100000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Regional seed from user-provided benchmark data. Verify current guidelines and fit.",
+        invitationStatus: "Verify current access path.",
+        grantSizeFitNote: "Benchmark data showed six grants to YMCA of the Triangle and a 2024 latest-year total near the requested range.",
+        recent_grants: [
+          {
+            recipient: "YMCA of the Triangle Area",
+            amount: 129000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for YMCA of the Triangle Area youth development, camp, swim safety, and family programs.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "United Way of the Greater Triangle",
+        location: "Raleigh, NC",
+        geography: "Triangle region of North Carolina",
+        focus_areas: ["youth opportunity", "basic needs", "education", "community services"],
+        typical_grant_size: 100000,
+        latest_filing_year: 2023,
+        guidelineStatus: "Regional seed from user-provided benchmark data. Verify current partnership and grant process.",
+        invitationStatus: "May be campaign or partnership driven. Confirm before outreach.",
+        grantSizeFitNote: "Benchmark data showed a latest-year total within the requested range.",
+        recent_grants: [
+          {
+            recipient: "YMCA of the Triangle Area",
+            amount: 119000,
+            year: 2023,
+            purpose: "Benchmark foundation funding signal for YMCA of the Triangle Area youth development, camp, swim safety, and family programs.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "ChildTrust Foundation",
+        location: "North Carolina",
+        geography: "Raleigh, Wake County, Triangle-area communities, and North Carolina",
+        focus_areas: ["children", "youth development", "family support", "education"],
+        typical_grant_size: 100000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Regional seed from user-provided benchmark data. Verify current guidelines.",
+        invitationStatus: "Verify whether unsolicited requests are accepted.",
+        grantSizeFitNote: "Benchmark data showed three grants to YMCA of the Triangle and a latest-year total inside the requested range.",
+        recent_grants: [
+          {
+            recipient: "YMCA of the Triangle Area",
+            amount: 100000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for YMCA of the Triangle Area youth development, camp, swim safety, and family programs.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "The Cannon Foundation",
+        location: "Concord, NC",
+        website: "https://www.cannonfoundation.org/",
+        geography: "Raleigh, Wake County, Triangle region, and North Carolina",
+        focus_areas: ["human services", "education", "health", "community facilities", "youth development"],
+        typical_grant_size: 50000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Regional seed from user-provided benchmark data. Verify current guidelines and eligibility.",
+        invitationStatus: "Verify current application process.",
+        grantSizeFitNote: "Benchmark data showed a 2024 grant amount at the lower end of the requested range.",
+        recent_grants: [
+          {
+            recipient: "YMCA of the Triangle Area",
+            amount: 50000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for YMCA of the Triangle Area youth development, camp, swim safety, and family programs.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+    ],
+  },
   nyc: {
     label: "New York City",
     aliases: [/new york city/i, /\bnyc\b/i, /brooklyn|bronx|queens|manhattan|staten island/i],
@@ -702,6 +809,302 @@ const regionalFallbackCatalog = {
 };
 
 const causeFallbackCatalog = [
+  {
+    id: "nonprofit_technology_infrastructure",
+    label: "nonprofit technology and fundraising infrastructure deterministic fallback",
+    triggers: [
+      /techsoup/i,
+      /network for good/i,
+      /nonprofit technology/i,
+      /digital capacity/i,
+      /fundraising infrastructure/i,
+      /donor infrastructure/i,
+      /technology access/i,
+      /nonprofit capacity/i,
+    ],
+    candidates: [
+      {
+        name: "Bill & Melinda Gates Foundation",
+        location: "Seattle, WA",
+        website: "https://www.gatesfoundation.org/",
+        geography: "Washington, DC, United States, and global nonprofit infrastructure",
+        focus_areas: ["nonprofit technology", "digital public infrastructure", "philanthropy infrastructure", "capacity building"],
+        typical_grant_size: 500000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Benchmark direct-funder signal for Network for Good. Verify current program strategy and whether nonprofit technology infrastructure is an active fit.",
+        invitationStatus: "Often strategy-led or relationship-driven outside formal open calls.",
+        grantSizeFitNote: "Benchmark data showed a $1,000,000 latest-year total, above the requested range. A smaller ask needs a tight learning, infrastructure, or scaling rationale.",
+        recent_grants: [
+          {
+            recipient: "Network for Good",
+            amount: 1000000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for Network for Good nonprofit technology, online giving, and fundraising infrastructure.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "Every.org",
+        location: "United States",
+        website: "https://www.every.org/",
+        geography: "Washington, DC, United States nonprofit giving infrastructure",
+        focus_areas: ["online giving", "donor infrastructure", "nonprofit technology", "fundraising infrastructure"],
+        typical_grant_size: 250000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Benchmark direct-funder signal for Network for Good. Verify whether this is a grantmaker, platform partner, or infrastructure collaborator in the current context.",
+        invitationStatus: "Verify current partnership or grant access path.",
+        grantSizeFitNote: "Benchmark data showed three grants and a latest-year total near the requested range.",
+        recent_grants: [
+          {
+            recipient: "Network for Good",
+            amount: 475000,
+            year: 2024,
+            purpose: "Benchmark funding signal for Network for Good nonprofit technology, online giving, and fundraising infrastructure.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "GlobalGiving Foundation",
+        location: "Washington, DC",
+        website: "https://www.globalgiving.org/",
+        geography: "Washington, DC, United States and global nonprofit giving infrastructure",
+        focus_areas: ["online giving", "nonprofit capacity", "fundraising infrastructure", "digital giving"],
+        typical_grant_size: 150000,
+        latest_filing_year: 2023,
+        guidelineStatus: "Benchmark direct-funder signal for Network for Good. Verify current role as grantmaker, platform, or partner.",
+        invitationStatus: "Verify current access path.",
+        grantSizeFitNote: "Benchmark data showed a latest-year total inside the requested range.",
+        recent_grants: [
+          {
+            recipient: "Network for Good",
+            amount: 146000,
+            year: 2023,
+            purpose: "Benchmark foundation funding signal for Network for Good nonprofit technology, online giving, and fundraising infrastructure.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "The Old Oak Foundation",
+        location: "United States",
+        geography: "Washington, DC, United States",
+        focus_areas: ["nonprofit capacity", "digital equity", "community services", "technology access"],
+        typical_grant_size: 75000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Benchmark direct-funder signal for Network for Good. Verify current guidelines and program fit.",
+        invitationStatus: "Verify whether requests are open or relationship-led.",
+        grantSizeFitNote: "Benchmark data showed two grants and a latest-year total inside the requested range.",
+        recent_grants: [
+          {
+            recipient: "Network for Good",
+            amount: 72000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for Network for Good nonprofit technology, online giving, and fundraising infrastructure.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "Knight Foundation",
+        location: "Miami, FL",
+        website: "https://knightfoundation.org/",
+        geography: "Washington, DC, United States and selected communities",
+        focus_areas: ["technology", "civic information", "digital transformation", "community infrastructure"],
+        typical_grant_size: 200000,
+        guidelineStatus: "New-candidate seed for nonprofit technology and civic infrastructure. Verify whether the current strategy fits nonprofit fundraising or technology capacity.",
+        invitationStatus: "Often program-led. Verify open calls and staff fit.",
+        grantSizeFitNote: "A $50,000-$250,000 request may fit only if aligned with a current technology, civic information, or community-infrastructure priority.",
+        peerSignals: ["TechSoup", "NTEN", "digital equity intermediaries", "nonprofit technology capacity organizations"],
+      },
+      {
+        name: "Omidyar Network",
+        location: "Redwood City, CA",
+        website: "https://omidyar.com/",
+        geography: "Washington, DC, United States and global",
+        focus_areas: ["digital society", "technology for public good", "philanthropy infrastructure", "responsible technology"],
+        typical_grant_size: 250000,
+        guidelineStatus: "New-candidate seed for digital civil society and technology infrastructure. Verify current funding vehicles and whether grants are made directly to U.S. nonprofits.",
+        invitationStatus: "Usually relationship-led.",
+        grantSizeFitNote: "The requested range may fit a scoped infrastructure or field-building project, subject to current priorities.",
+        peerSignals: ["nonprofit technology intermediaries", "digital public infrastructure organizations", "civil society technology groups"],
+      },
+    ],
+  },
+  {
+    id: "digital_agriculture_smallholder",
+    label: "digital agriculture and smallholder farmer deterministic fallback",
+    triggers: [
+      /digital green/i,
+      /farmerchat/i,
+      /smallholder/i,
+      /small-scale farmer/i,
+      /digital agriculture/i,
+      /climate-smart agriculture/i,
+      /agricultural advice/i,
+      /farmer livelihoods/i,
+      /extension partners/i,
+    ],
+    candidates: [
+      {
+        name: "Bill & Melinda Gates Foundation",
+        location: "Seattle, WA",
+        website: "https://www.gatesfoundation.org/",
+        geography: "Global agriculture and low- and middle-income countries",
+        focus_areas: ["agricultural development", "smallholder farmers", "digital agriculture", "food systems"],
+        typical_grant_size: 1000000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Benchmark direct-funder signal for Digital Green. Verify current agricultural development strategy, country fit, and invitation path.",
+        invitationStatus: "Often strategy-led or RFP-driven.",
+        grantSizeFitNote: "Benchmark data showed multiple grants to Digital Green, including a 2024 latest-year total above the requested range. A $250,000-$1,000,000 request may fit if scoped to a priority geography or learning agenda.",
+        recent_grants: [
+          {
+            recipient: "Digital Green Foundation",
+            amount: 1500000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for Digital Green Foundation digital agriculture, smallholder farmer, climate-smart agriculture, and farmer livelihood work.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "Walmart Foundation",
+        location: "Bentonville, AR",
+        website: "https://www.walmart.org/",
+        geography: "United States and global supply chains",
+        focus_areas: ["smallholder farmers", "market access", "food systems", "livelihoods"],
+        typical_grant_size: 1000000,
+        latest_filing_year: 2023,
+        guidelineStatus: "Benchmark direct-funder signal for Digital Green. Verify current agriculture and supply-chain philanthropy priorities.",
+        invitationStatus: "Likely program-led. Verify current guidelines.",
+        grantSizeFitNote: "Benchmark data showed a large latest-year grant. A request in the user's range should be framed around farmer livelihoods, market access, or food-system outcomes.",
+        recent_grants: [
+          {
+            recipient: "Digital Green Foundation",
+            amount: 3000000,
+            year: 2023,
+            purpose: "Benchmark foundation funding signal for Digital Green Foundation digital agriculture, smallholder farmer, climate-smart agriculture, and farmer livelihood work.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "Mulago Foundation",
+        location: "San Francisco, CA",
+        website: "https://www.mulagofoundation.org/",
+        geography: "Organizations serving people in poverty globally",
+        focus_areas: ["poverty", "smallholder farmers", "livelihoods", "scalable delivery models"],
+        typical_grant_size: 500000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Benchmark direct-funder signal for Digital Green. Verify current fit and introduction pathway.",
+        invitationStatus: "Relationship-driven. Warm path matters.",
+        grantSizeFitNote: "Benchmark data showed two grants to Digital Green and a latest-year total in the requested range.",
+        recent_grants: [
+          {
+            recipient: "Digital Green Foundation",
+            amount: 500000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for Digital Green Foundation digital agriculture, smallholder farmer, climate-smart agriculture, and farmer livelihood work.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "The Rockefeller Foundation",
+        location: "New York, NY",
+        website: "https://www.rockefellerfoundation.org/",
+        geography: "Global food systems and climate resilience",
+        focus_areas: ["food systems", "climate-smart agriculture", "smallholder farmers", "livelihoods"],
+        typical_grant_size: 500000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Benchmark direct-funder signal for Digital Green. Verify current food and climate strategy fit.",
+        invitationStatus: "Often relationship or strategy-led.",
+        grantSizeFitNote: "Benchmark data showed two grants and a latest-year total in the requested range.",
+        recent_grants: [
+          {
+            recipient: "Digital Green Foundation",
+            amount: 469000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for Digital Green Foundation digital agriculture, smallholder farmer, climate-smart agriculture, and farmer livelihood work.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "Patrick J. McGovern Foundation",
+        location: "Boston, MA",
+        website: "https://www.mcgovern.org/",
+        geography: "Global and United States, with emphasis on AI and data for social impact",
+        focus_areas: ["AI for good", "data science", "digital public goods", "agriculture technology"],
+        typical_grant_size: 400000,
+        latest_filing_year: 2024,
+        guidelineStatus: "Benchmark direct-funder signal for Digital Green. Verify whether FarmerChat fits current AI and data-for-good priorities.",
+        invitationStatus: "Likely inquiry or relationship-led. Confirm before outreach.",
+        grantSizeFitNote: "Benchmark data showed a latest-year grant in the requested range.",
+        recent_grants: [
+          {
+            recipient: "Digital Green Foundation",
+            amount: 400000,
+            year: 2024,
+            purpose: "Benchmark foundation funding signal for Digital Green Foundation digital agriculture, smallholder farmer, climate-smart agriculture, and farmer livelihood work.",
+            source: "User-provided benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "IKEA Foundation",
+        location: "Netherlands",
+        website: "https://ikeafoundation.org/",
+        geography: "Global South and climate-vulnerable communities",
+        focus_areas: ["livelihoods", "climate resilience", "smallholder farmers", "agricultural systems"],
+        typical_grant_size: 750000,
+        latest_filing_year: 2024,
+        guidelineStatus: "New-candidate seed for climate-smart agriculture and livelihoods. Verify current geography, open calls, and whether U.S. nonprofit applicants are eligible.",
+        invitationStatus: "Often strategy-led and partnership-driven.",
+        grantSizeFitNote: "A $250,000-$1,000,000 request may fit if tied to farmer livelihoods, climate adaptation, or systems partnerships.",
+        peerSignals: ["One Acre Fund", "Root Capital", "climate-smart agriculture implementers", "smallholder livelihood organizations"],
+        peerGrantEvidence: [
+          {
+            recipient: "One Acre Fund",
+            amount: "",
+            year: 2024,
+            purpose: "Co-funded peer signal from the Digital Green benchmark screenshot for smallholder farmer and agricultural livelihood work.",
+            source: "User-provided Digital Green benchmark screenshot, 2026-06-14",
+          },
+          {
+            recipient: "Root Capital",
+            amount: "",
+            year: 2024,
+            purpose: "Co-funded peer signal from the Digital Green benchmark screenshot for smallholder farmer and agricultural livelihood work.",
+            source: "User-provided Digital Green benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+      {
+        name: "Mastercard Foundation",
+        location: "Toronto, Canada",
+        website: "https://mastercardfdn.org/",
+        geography: "Africa and selected global learning priorities",
+        focus_areas: ["youth livelihoods", "agriculture", "digital economy", "smallholder farmers"],
+        typical_grant_size: 1000000,
+        latest_filing_year: 2024,
+        guidelineStatus: "New-candidate seed for digital agriculture and livelihoods. Verify current geographic eligibility because many priorities are Africa-centered.",
+        invitationStatus: "Often strategy-led and partnership-driven.",
+        grantSizeFitNote: "The requested range may fit only if the geography and partner strategy align.",
+        peerSignals: ["smallholder farmer livelihood organizations", "digital agriculture platforms", "youth livelihood programs"],
+        peerGrantEvidence: [
+          {
+            recipient: "One Acre Fund",
+            amount: "",
+            year: 2024,
+            purpose: "Co-funded peer signal from the Digital Green benchmark screenshot for smallholder farmer and agricultural livelihood work.",
+            source: "User-provided Digital Green benchmark screenshot, 2026-06-14",
+          },
+        ],
+      },
+    ],
+  },
   {
     id: "global_health_digital_health",
     label: "global health and digital health deterministic fallback",
@@ -1044,6 +1447,16 @@ function geographyTerms(profile) {
     ["new york city", "nyc"].forEach((term) => expanded.add(term));
   } else if (/\bny\b|new york/.test(raw)) {
     expanded.add("new york");
+  }
+  if (/washington,\s*dc|washington dc|district of columbia|\bdc\b/.test(raw)) {
+    ["washington dc", "washington, dc", "district of columbia"].forEach((term) => expanded.add(term));
+  }
+  if (/raleigh|durham|cary|wake county|triangle region|\btriangle\b/.test(raw)) {
+    ["raleigh", "durham", "cary", "wake county", "triangle"].forEach((term) => {
+      if (raw.includes(term)) {
+        expanded.add(term);
+      }
+    });
   }
   if (/south asia|india|nepal|kyrgyzstan|bangladesh|pakistan|sri lanka/.test(raw)) {
     ["south asia", "india", "nepal", "kyrgyzstan"].forEach((term) => {
@@ -1777,6 +2190,8 @@ function buildSearchQueries(profile, mode = "primary") {
     profile.evidenceOfResults,
   ].map(text).join(" ").toLowerCase();
   const globalHealthHint = /(global health|digital health|telemedicine|telehealth|primary care|maternal|birthing|delivery ward|newborn|south asia|india|nepal|kyrgyzstan|hospital|healthcare)/.test(healthProfile);
+  const nonprofitTechHint = /(techsoup|network for good|nonprofit technology|digital capacity|fundraising infrastructure|donor infrastructure|technology access|online giving|digital giving|nonprofit capacity)/.test(healthProfile);
+  const digitalAgricultureHint = /(digital green|farmerchat|smallholder|small-scale farmer|digital agriculture|climate-smart agriculture|agricultural advice|farmer livelihoods|extension partners|food systems)/.test(healthProfile);
   const programWords = [...keywordSet(profile)];
   const workforceProfile = [
     profile.mission,
@@ -1803,6 +2218,26 @@ function buildSearchQueries(profile, mode = "primary") {
       "primary care South Asia",
       "India telemedicine health systems",
       "digital health foundation grants",
+    );
+  }
+  if (nonprofitTechHint) {
+    sectorQueries.push(
+      "nonprofit technology foundation grants",
+      "digital capacity building funders",
+      "online giving infrastructure funders",
+      "nonprofit fundraising infrastructure grants",
+      "TechSoup funders",
+      "Network for Good funders",
+    );
+  }
+  if (digitalAgricultureHint) {
+    sectorQueries.push(
+      "digital agriculture foundation grants",
+      "smallholder farmer funders",
+      "climate-smart agriculture philanthropy",
+      "agricultural technology foundation grants",
+      "Digital Green funders",
+      "FarmerChat agriculture funders",
     );
   }
   const primaryQueries = [
@@ -1836,6 +2271,20 @@ function buildSearchQueries(profile, mode = "primary") {
       `${localGeo} global health foundation grants`,
       `${localGeo} maternal health foundation grants`,
       `${localGeo} telemedicine foundation grants`,
+    );
+  }
+  if (nonprofitTechHint) {
+    localQueries.unshift(
+      `${localGeo} nonprofit technology funders`,
+      `${localGeo} digital capacity building grants`,
+      `${localGeo} fundraising infrastructure funders`,
+    );
+  }
+  if (digitalAgricultureHint) {
+    localQueries.unshift(
+      `${localGeo} digital agriculture funders`,
+      `${localGeo} smallholder farmer grants`,
+      `${localGeo} climate-smart agriculture philanthropy`,
     );
   }
   const selected = mode === "local" ? localQueries : primaryQueries;
