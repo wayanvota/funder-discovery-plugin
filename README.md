@@ -59,6 +59,10 @@ The Custom GPT setup package lives in:
 - `docs/pilot/custom-gpt-actions-pilot.md`
 - `docs/pilot/test-plan.md`
 
+Privacy policy for the pilot:
+
+- `PRIVACY.md`
+
 ## Install From GitHub
 
 Publish this folder as a public GitHub repository. In a Codex or ChatGPT environment that supports GitHub plugin installs, add the repository as a plugin source.

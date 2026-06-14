@@ -8,4 +8,4 @@ Do not submit confidential donor strategy, sensitive personal information, priva
 
 The service may transmit the organization profile and search terms to upstream data services to perform funder discovery, fit scoring, and pipeline generation. The service does not guarantee funding, eligibility, invitation status, or current application deadlines. Users should verify current foundation guidelines, contact information, and grant requirements before outreach.
 
-For questions, contact: [CONTACT EMAIL].
+For questions, contact: wayan@wayan.com
