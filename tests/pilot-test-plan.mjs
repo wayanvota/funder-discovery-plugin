@@ -107,17 +107,19 @@ assert(intelehealthPrimaryQueries.some((query) => /global health|telemedicine|ma
 assert(!intelehealthPrimaryQueries.some((query) => /workforce|youth employment|digital skills|career pathways/i.test(query)), "Digital health should not trigger workforce primary queries.");
 assert(!intelehealthLocalQueries.some((query) => /workforce|youth employment|digital skills|career pathways/i.test(query)), "Digital health should not trigger workforce local queries.");
 const intelehealth = await runDiscovery({
-  organizationProfile: intelehealthProfile,
+  organizationProfile: intelehealthWithPeers,
   options: { shortlistSize: 5, causeFallbackOnly: true },
 });
 assert(intelehealth.status === "partial", "Intelehealth fallback-assisted results should be marked partial until verified.");
 assert(intelehealth.prospects.length >= 5, "Intelehealth should return a usable global-health shortlist.");
 assert(intelehealth.prospects.some((prospect) => /Gates/i.test(prospect.name)), "Intelehealth shortlist should include Gates as a relevant global-health seed.");
 assert(intelehealth.prospects.some((prospect) => /McGovern/i.test(prospect.name)), "Intelehealth shortlist should include McGovern as a relevant digital-health seed.");
+assert(intelehealth.prospects.some((prospect) => /Mulago/i.test(prospect.name)), "Intelehealth shortlist should include Mulago when global peer evidence fits.");
 assert(intelehealth.prospects.every((prospect) => prospect.source_type === "cause_fallback_seed"), "Intelehealth active demo prospects should be cause fallback seeds when live search is not required.");
 assert(intelehealth.prospects.every((prospect) => prospect.confidence === "Low"), "Cause fallback prospects should stay low confidence until verified.");
 assert(intelehealth.prospects.every((prospect) => /verify/i.test(`${prospect.nextAction} ${prospect.mainRisk}`)), "Cause fallback prospects should require guidelines, peer-grant, invitation, and grant-size verification.");
 assert(intelehealth.prospects.some((prospect) => /PATH|Dimagi|Medic|Jacaranda|Living Goods/i.test(JSON.stringify(prospect.peerSignals))), "Intelehealth prospects should expose peer-signal prompts.");
+assert(intelehealth.prospects.some((prospect) => /Noora Health|Dimagi|Medic/i.test(JSON.stringify(prospect.peerGrantEvidence))), "Intelehealth prospects should expose public peer-funder evidence.");
 assert(intelehealth.prospects.every((prospect) => prospect.guidelineStatus && prospect.invitationStatus && prospect.grantSizeFitNote), "Intelehealth prospects should include guideline, invitation, and grant-size fit details.");
 
 const expectedCsvColumns = [

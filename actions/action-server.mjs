@@ -28,7 +28,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.3",
+    version: "0.6.4",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -736,6 +736,22 @@ const causeFallbackCatalog = [
         invitationStatus: "Likely relationship or inquiry-led. Confirm before outreach.",
         grantSizeFitNote: "A $250,000-$500,000 ask is within a plausible program-support range for a technology-for-good funder, subject to current guidelines.",
         peerSignals: ["DataKind", "TechChange", "digital public goods organizations", "responsible AI health initiatives"],
+        peerGrantEvidence: [
+          {
+            recipient: "Noora Health",
+            amount: 500000,
+            year: 2025,
+            purpose: "To enhance AI tools that support caregivers in Global Majority countries.",
+            source: "https://www.mcgovern.org/grants/",
+          },
+          {
+            recipient: "Dimagi, Inc.",
+            amount: 300000,
+            year: 2020,
+            purpose: "To support visualization and analytics tools for COVID-19 community-based response.",
+            source: "https://www.mcgovern.org/grants/",
+          },
+        ],
       },
       {
         name: "Grand Challenges Canada",
@@ -760,6 +776,22 @@ const causeFallbackCatalog = [
         invitationStatus: "Usually selective and network-driven.",
         grantSizeFitNote: "A $250,000-$500,000 ask may be plausible only if framed around scale, systems change, and proven implementation.",
         peerSignals: ["Last Mile Health", "Living Goods", "Medic", "global health social enterprises"],
+        peerGrantEvidence: [
+          {
+            recipient: "Medic",
+            amount: "",
+            year: 2014,
+            purpose: "Skoll organization record for Medic, formerly Medic Mobile.",
+            source: "https://skoll.org/organization/medic/",
+          },
+          {
+            recipient: "Last Mile Health",
+            amount: "",
+            year: 2017,
+            purpose: "Skoll Award peer signal for a comparable global health delivery organization.",
+            source: "https://skoll.org/",
+          },
+        ],
       },
       {
         name: "Mulago Foundation",
@@ -772,6 +804,15 @@ const causeFallbackCatalog = [
         invitationStatus: "Relationship-driven. Warm path matters.",
         grantSizeFitNote: "A $250,000-$500,000 ask may fit if framed around measurable scale and cost-effective health outcomes.",
         peerSignals: ["Living Goods", "Last Mile Health", "One Acre Fund-style scale organizations", "community health implementers"],
+        peerGrantEvidence: [
+          {
+            recipient: "Noora Health",
+            amount: "",
+            year: "",
+            purpose: "Mulago Foundation portfolio page for Noora Health.",
+            source: "https://www.mulagofoundation.org/portfolio/noora-health",
+          },
+        ],
       },
       {
         name: "Co-Impact",
@@ -1134,7 +1175,10 @@ function isDeterministicSeed(candidate) {
 }
 
 function recentGrants(candidate) {
-  return Array.isArray(candidate.recent_grants) ? candidate.recent_grants : [];
+  return [
+    ...(Array.isArray(candidate.recent_grants) ? candidate.recent_grants : []),
+    ...(Array.isArray(candidate.peerGrantEvidence) ? candidate.peerGrantEvidence : []),
+  ];
 }
 
 function grantAmount(grant) {
@@ -1249,7 +1293,7 @@ function geographyEvidence(profile, candidate) {
   if (directHits.length > 0) {
     return { score: 17, status: "profile_geography_match", hits: directHits, grantMatches };
   }
-  if (profileHasInternationalScope(profile) && /\b(global|global south|low- and middle-income|low and middle income|lmic|worldwide)\b/.test(body)) {
+  if (profileHasInternationalScope(profile) && /\b(global|globally|global south|low- and middle-income|low and middle income|lmic|worldwide)\b/.test(body)) {
     return { score: 12, status: "international_scope_but_unconfirmed_country_fit", hits: [], grantMatches };
   }
   if (profileHasNationalScope(profile) && body.includes("national")) {
@@ -1462,7 +1506,7 @@ function buildRationale(candidate, evidence) {
     parts.push(`Grant-size fit note: ${candidate.grantSizeFitNote}`);
   }
   if (evidence.program.grantMatches.length > 0) {
-    parts.push(`${evidence.program.grantMatches.length} recent grant(s) show program fit.`);
+    parts.push(`${evidence.program.grantMatches.length} peer or recent grant signal(s) show program fit.`);
   } else if (evidence.program.matchingKeywords.length > 0) {
     parts.push(`Program language overlaps on ${evidence.program.matchingKeywords.slice(0, 5).join(", ")}.`);
   }
@@ -1892,7 +1936,7 @@ async function getPropublicaFilings(ein) {
 }
 
 function buildBrief(profile, prospect, rank) {
-  const grants = Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 2).map(compactGrant) : [];
+  const grants = recentGrants(prospect).slice(0, 2).map(compactGrant);
   return {
     rank,
     foundationName: displayName(prospect),
@@ -1918,6 +1962,7 @@ function buildBrief(profile, prospect, rank) {
       invitationStatus: prospect.invitationStatus || prospect.openness || "Verify invitation status before outreach",
       grantSizeFit: prospect.grantSizeFitNote || `Compared against desired grant size: ${text(profile.desiredGrantSize)}`,
       peerSignals: compactList(prospect.peerSignals, 6) || "Ask for peer organizations or verify recent peer grantees",
+      peerGrantEvidence: compactList(prospect.peerGrantEvidence, 4) || "No public peer-grant evidence attached",
     },
     fitSignals: {
       prospectCategory: prospect.prospectCategory,
@@ -1997,7 +2042,8 @@ function compactProspect(prospect, rank, profile) {
     invitationStatus: compactValue(prospect.invitationStatus, 180),
     grantSizeFitNote: compactValue(prospect.grantSizeFitNote, 220),
     peerSignals: compactList(prospect.peerSignals, 6),
-    sample_grants: Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 2).map(compactGrant) : [],
+    peerGrantEvidence: Array.isArray(prospect.peerGrantEvidence) ? prospect.peerGrantEvidence.slice(0, 4).map(compactGrant) : [],
+    sample_grants: recentGrants(prospect).slice(0, 2).map(compactGrant),
     programFitScore: prospect.programFitScore,
     geographyFitScore: prospect.geographyFitScore,
     grantSizeFitScore: prospect.grantSizeFitScore,
@@ -2014,7 +2060,11 @@ function compactProspect(prospect, rank, profile) {
     whyNot: compactValue(prospect.whyNot, 260),
     recommendedAsk: recommendedAsk(prospect, profile),
     nextAction: nextActionFor(prospect),
-    source_links: [prospect.website, prospect.filing_pdf_url].filter(Boolean).join(" "),
+    source_links: [
+      prospect.website,
+      prospect.filing_pdf_url,
+      ...(Array.isArray(prospect.peerGrantEvidence) ? prospect.peerGrantEvidence.map((grant) => grant.source).filter(Boolean) : []),
+    ].filter(Boolean).join(" "),
   };
 }
 
@@ -2504,7 +2554,7 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
     testObservations: [
       `Profile completeness score: ${profileCheck.completenessScore}.`,
       `Strongest candidate: ${prospects[0]?.name ?? "none"}.`,
-      `Active prospects passing quality gate: ${activeCandidates.length}.`,
+      `Shortlisted active prospects: ${prospects.length}.`,
       `Research-only or rejected candidates: ${researchOnlyProspects.length}.`,
       `Lowest-confidence shortlisted candidate: ${prospects.slice().sort((a, b) => confidenceRank(a.confidence) - confidenceRank(b.confidence))[0]?.name ?? "none"}.`,
     ],
@@ -2529,8 +2579,16 @@ function rankProspects(prospects) {
     if (categoryDelta !== 0) {
       return categoryDelta;
     }
-    return b.totalFitScore - a.totalFitScore;
+    const scoreDelta = b.totalFitScore - a.totalFitScore;
+    if (scoreDelta !== 0) {
+      return scoreDelta;
+    }
+    return peerEvidenceCount(b) - peerEvidenceCount(a);
   });
+}
+
+function peerEvidenceCount(prospect) {
+  return Array.isArray(prospect.peerGrantEvidence) ? prospect.peerGrantEvidence.length : 0;
 }
 
 function categoryRank(category) {
