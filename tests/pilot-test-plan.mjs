@@ -122,6 +122,25 @@ assert(intelehealth.prospects.some((prospect) => /PATH|Dimagi|Medic|Jacaranda|Li
 assert(intelehealth.prospects.some((prospect) => /Noora Health|Dimagi|Medic/i.test(JSON.stringify(prospect.peerGrantEvidence))), "Intelehealth prospects should expose public peer-funder evidence.");
 assert(intelehealth.prospects.every((prospect) => prospect.guidelineStatus && prospect.invitationStatus && prospect.grantSizeFitNote), "Intelehealth prospects should include guideline, invitation, and grant-size fit details.");
 
+const broadGlobalHealthCorporate = scoreProspect(intelehealthWithPeers, {
+  name: "Broad Corporate Health Foundation",
+  foundation_type: "private foundation",
+  latest_filing_year: 2025,
+  typical_grant_size: 500000,
+  geography: "Global health",
+  recent_grants: [
+    {
+      recipient: "Indiana University",
+      amount: 3300000,
+      year: 2025,
+      purpose: "Support AMPATH integrated chronic disease clinics in resource-limited settings in Kenya.",
+    },
+  ],
+  openness: "Public website",
+});
+assert(broadGlobalHealthCorporate.prospectCategory !== "direct_grant_prospect", "Broad international health grants without peer or target-country evidence should not become direct prospects.");
+assert(broadGlobalHealthCorporate.confidence !== "High", "Broad international health grants without peer or target-country evidence should not be high confidence.");
+
 const expectedCsvColumns = [
   "rank",
   "foundation_name",

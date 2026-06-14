@@ -10,6 +10,7 @@ const KINDORA_FALLBACK_MCP_URL = DEFAULT_KINDORA_MCP_URL;
 const KINDORA_API_KEY = process.env.KINDORA_API_KEY;
 const KINDORA_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_TIMEOUT ?? "60000", 10);
 const KINDORA_SEARCH_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_SEARCH_TIMEOUT ?? "12000", 10);
+const KINDORA_DETAIL_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_DETAIL_TIMEOUT ?? "15000", 10);
 const USE_MOCK_DATA = process.env.FUNDER_DISCOVERY_MOCK === "1";
 const DEFAULT_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://localhost:${PORT}`;
 const ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -28,7 +29,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.4",
+    version: "0.6.5",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -1239,6 +1240,20 @@ function similarGranteeMatches(profile, candidate) {
     .map(compactGrant);
 }
 
+function peerGrantMatches(profile, candidate) {
+  const peers = peerOrganizationList(profile).map((peer) => peer.toLowerCase());
+  if (peers.length === 0) {
+    return [];
+  }
+  return recentGrants(candidate)
+    .filter((grant) => {
+      const body = grantText(grant);
+      return peers.some((peer) => body.includes(peer));
+    })
+    .slice(0, 4)
+    .map(compactGrant);
+}
+
 function opennessEvidence(candidate) {
   const opennessText = text(candidate.openness ?? candidate.application_process ?? candidate.guidelines ?? candidate.website ?? "").toLowerCase();
   if (/(invitation|invite only|invited|closed|family foundation|no unsolicited)/.test(opennessText)) {
@@ -1377,7 +1392,10 @@ function qualityGateProspect(profile, candidate, evidence) {
     funderType: evidence.funderType,
     sourceType: candidate.source_type ?? "live_or_uploaded",
     similarGrantees: evidence.similarMatches.length,
+    peerGrantMatches: evidence.peerMatches.length,
   };
+  const hasPeerEvidence = evidence.peerMatches.length > 0
+    || (Array.isArray(candidate.peerGrantEvidence) && candidate.peerGrantEvidence.length > 0);
 
   if (evidence.funderType === "unclear") {
     cautions.push("Grantmaker status is unclear in available data.");
@@ -1393,6 +1411,8 @@ function qualityGateProspect(profile, candidate, evidence) {
   }
   if (evidence.geography.score < 8) {
     disqualifiers.push("No clear geography evidence for the user's service area.");
+  } else if (evidence.geography.status === "international_scope_but_unconfirmed_country_fit" && !hasPeerEvidence) {
+    cautions.push("International scope is visible, but target country or peer-grantee fit is not confirmed.");
   } else if (evidence.geography.status === "national_but_unconfirmed_local_fit") {
     cautions.push("National scope is visible, but local funding evidence is not confirmed.");
   }
@@ -1420,6 +1440,10 @@ function qualityGateProspect(profile, candidate, evidence) {
     prospectCategory = evidence.relationship.score >= 8 ? "relationship_first_prospect" : "research_only";
   } else if (evidence.openness.status === "invitation_or_closed") {
     prospectCategory = "relationship_first_prospect";
+  } else if (!isDeterministicSeed(candidate)
+    && evidence.geography.status === "international_scope_but_unconfirmed_country_fit"
+    && !hasPeerEvidence) {
+    prospectCategory = "research_only";
   } else if (cautions.length >= 2 || evidence.similarMatches.length === 0) {
     prospectCategory = "research_only";
   }
@@ -1444,7 +1468,7 @@ function confidenceForEvidence(gate, evidence) {
     evidence.geography.score >= 17,
     evidence.grantSize.score >= 10,
     evidence.recency.score >= 10,
-    evidence.similarMatches.length > 0,
+    evidence.peerMatches.length > 0 || evidence.similarMatches.length > 0,
   ].filter(Boolean).length;
   if (gate.prospectCategory === "direct_grant_prospect" && essentials >= 4) {
     return "High";
@@ -1465,6 +1489,7 @@ function scoreProspect(profile, candidate) {
     relationship: relationshipEvidence(profile, candidate),
     funderType: funderTypeStatus(candidate),
     similarMatches: similarGranteeMatches(profile, candidate),
+    peerMatches: peerGrantMatches(profile, candidate),
   };
   const gate = qualityGateProspect(profile, candidate, evidence);
   const totalFitScore = evidence.program.score + evidence.geography.score + evidence.grantSize.score + evidence.recency.score + evidence.openness.score + evidence.relationship.score;
@@ -1843,7 +1868,7 @@ async function enrichCandidate(candidate, profile, sourceNotes) {
   const detailResults = await Promise.allSettled(
     detailCalls.map(async ([toolName, args]) => ({
       toolName,
-      result: await callKindoraTool(toolName, args),
+      result: await callKindoraTool(toolName, args, KINDORA_MCP_URL, KINDORA_DETAIL_TIMEOUT_MS),
     })),
   );
   for (const detail of detailResults) {
