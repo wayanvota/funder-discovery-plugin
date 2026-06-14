@@ -29,7 +29,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.7",
+    version: "0.6.8",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -1893,7 +1893,13 @@ function qualityGateProspect(profile, candidate, evidence) {
 
 function confidenceForEvidence(gate, evidence) {
   if (gate.evidenceFlags.sourceType === "regional_fallback_seed" || gate.evidenceFlags.sourceType === "cause_fallback_seed") {
-    return "Low";
+    const deterministicEssentials = [
+      evidence.program.score >= 17,
+      evidence.grantSize.score >= 10,
+      evidence.recency.score >= 10,
+      evidence.peerMatches.length > 0 || evidence.similarMatches.length > 0,
+    ].filter(Boolean).length;
+    return deterministicEssentials >= 4 ? "Medium" : "Low";
   }
   const essentials = [
     evidence.program.score >= 17,

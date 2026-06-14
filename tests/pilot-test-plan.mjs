@@ -101,6 +101,8 @@ assert(triangleYmcaFallback.prospects.length >= 5, "Triangle YMCA fallback shoul
 assert(triangleYmcaFallback.prospects.every((prospect) => prospect.source_type === "regional_fallback_seed"), "Triangle YMCA prospects should be regional fallback seeds.");
 assert(triangleYmcaFallback.prospects.some((prospect) => /Holding|Finley|United Way|ChildTrust|Cannon/i.test(prospect.name)), "Triangle YMCA fallback should include benchmark Triangle funders.");
 assert(triangleYmcaFallback.prospects.some((prospect) => /YMCA of the Triangle/i.test(JSON.stringify(prospect.similarGranteeMatches))), "Triangle YMCA fallback should expose prior-funder benchmark evidence.");
+assert(triangleYmcaFallback.prospects.some((prospect) => prospect.confidence === "Medium"), "Benchmark-backed Triangle seeds should be allowed to reach medium confidence.");
+assert(!triangleYmcaFallback.prospects.some((prospect) => prospect.confidence === "High"), "Deterministic Triangle seeds should not be high confidence without live verification.");
 
 const techSoupProfile = {
   organizationName: "Network for Good / TechSoup context",
@@ -122,6 +124,8 @@ assert(techSoupFallback.prospects.length >= 5, "TechSoup/Network for Good fallba
 assert(techSoupFallback.prospects.some((prospect) => /Gates|Every|GlobalGiving|Old Oak/i.test(prospect.name)), "TechSoup fallback should include benchmark direct funders.");
 assert(techSoupFallback.prospects.some((prospect) => /Knight|Omidyar/i.test(prospect.name)), "TechSoup fallback should include new research candidates.");
 assert(techSoupFallback.prospects.some((prospect) => /Network for Good/i.test(JSON.stringify(prospect.similarGranteeMatches))), "TechSoup fallback should expose prior-funder benchmark evidence.");
+assert(techSoupFallback.prospects.some((prospect) => prospect.confidence === "Medium"), "Benchmark-backed TechSoup seeds should be allowed to reach medium confidence.");
+assert(!techSoupFallback.prospects.some((prospect) => prospect.confidence === "High"), "Deterministic TechSoup seeds should not be high confidence without live verification.");
 
 const digitalGreenProfile = {
   organizationName: "Digital Green Foundation",
@@ -143,6 +147,8 @@ assert(digitalGreenFallback.prospects.length >= 5, "Digital Green fallback shoul
 assert(digitalGreenFallback.prospects.some((prospect) => /Gates|Walmart|Mulago|Rockefeller|McGovern/i.test(prospect.name)), "Digital Green fallback should include benchmark direct funders.");
 assert(digitalGreenFallback.prospects.some((prospect) => /IKEA|Mastercard/i.test(prospect.name)), "Digital Green fallback should include new research candidates.");
 assert(digitalGreenFallback.prospects.some((prospect) => /Digital Green Foundation/i.test(JSON.stringify(prospect.similarGranteeMatches))), "Digital Green fallback should expose prior-funder benchmark evidence.");
+assert(digitalGreenFallback.prospects.some((prospect) => /IKEA|Mastercard/i.test(prospect.name) && prospect.confidence === "Medium"), "New Digital Green candidates with co-funded-peer evidence should be medium confidence.");
+assert(!digitalGreenFallback.prospects.some((prospect) => prospect.confidence === "High"), "Deterministic Digital Green seeds should not be high confidence without live verification.");
 
 const intelehealthProfile = {
   organizationName: "Intelehealth",
@@ -175,7 +181,7 @@ assert(intelehealth.prospects.some((prospect) => /Gates/i.test(prospect.name)), 
 assert(intelehealth.prospects.some((prospect) => /McGovern/i.test(prospect.name)), "Intelehealth shortlist should include McGovern as a relevant digital-health seed.");
 assert(intelehealth.prospects.some((prospect) => /Mulago/i.test(prospect.name)), "Intelehealth shortlist should include Mulago when global peer evidence fits.");
 assert(intelehealth.prospects.every((prospect) => prospect.source_type === "cause_fallback_seed"), "Intelehealth active demo prospects should be cause fallback seeds when live search is not required.");
-assert(intelehealth.prospects.every((prospect) => prospect.confidence === "Low"), "Cause fallback prospects should stay low confidence until verified.");
+assert(!intelehealth.prospects.some((prospect) => prospect.confidence === "High"), "Cause fallback prospects should not be high confidence until verified.");
 assert(intelehealth.prospects.every((prospect) => /verify/i.test(`${prospect.nextAction} ${prospect.mainRisk}`)), "Cause fallback prospects should require guidelines, peer-grant, invitation, and grant-size verification.");
 assert(intelehealth.prospects.some((prospect) => /PATH|Dimagi|Medic|Jacaranda|Living Goods/i.test(JSON.stringify(prospect.peerSignals))), "Intelehealth prospects should expose peer-signal prompts.");
 assert(intelehealth.prospects.some((prospect) => /Noora Health|Dimagi|Medic/i.test(JSON.stringify(prospect.peerGrantEvidence))), "Intelehealth prospects should expose public peer-funder evidence.");
