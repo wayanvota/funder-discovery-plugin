@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
-const KINDORA_MCP_URL = process.env.KINDORA_MCP_URL ?? "https://kindora-mcp.azurewebsites.net/mcp/";
+const KINDORA_MCP_URL = (process.env.KINDORA_MCP_URL ?? "https://kindora-mcp.azurewebsites.net/mcp").replace(/\/+$/, "");
 const KINDORA_API_KEY = process.env.KINDORA_API_KEY;
 const KINDORA_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_TIMEOUT ?? "60000", 10);
 const USE_MOCK_DATA = process.env.FUNDER_DISCOVERY_MOCK === "1";
@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.4",
+    version: "0.5.5",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
