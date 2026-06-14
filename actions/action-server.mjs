@@ -29,7 +29,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.8",
+    version: "0.6.9",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -135,6 +135,8 @@ const openApi = {
           mission: { type: "string" },
           programsOrFundingNeeds: { type: "string" },
           geographyServed: { type: "string" },
+          operatingGeography: { type: "string" },
+          serviceArea: { type: "string" },
           beneficiaries: { type: "string" },
           annualBudget: { type: "string" },
           budgetBand: { type: "string" },
@@ -827,7 +829,7 @@ const causeFallbackCatalog = [
         name: "Bill & Melinda Gates Foundation",
         location: "Seattle, WA",
         website: "https://www.gatesfoundation.org/",
-        geography: "Washington, DC, United States, and global nonprofit infrastructure",
+        geography: "United States national nonprofit infrastructure and global philanthropy infrastructure",
         focus_areas: ["nonprofit technology", "digital public infrastructure", "philanthropy infrastructure", "capacity building"],
         typical_grant_size: 500000,
         latest_filing_year: 2024,
@@ -848,7 +850,7 @@ const causeFallbackCatalog = [
         name: "Every.org",
         location: "United States",
         website: "https://www.every.org/",
-        geography: "Washington, DC, United States nonprofit giving infrastructure",
+        geography: "United States national nonprofit giving infrastructure",
         focus_areas: ["online giving", "donor infrastructure", "nonprofit technology", "fundraising infrastructure"],
         typical_grant_size: 250000,
         latest_filing_year: 2024,
@@ -869,7 +871,7 @@ const causeFallbackCatalog = [
         name: "GlobalGiving Foundation",
         location: "Washington, DC",
         website: "https://www.globalgiving.org/",
-        geography: "Washington, DC, United States and global nonprofit giving infrastructure",
+        geography: "United States national and global nonprofit giving infrastructure",
         focus_areas: ["online giving", "nonprofit capacity", "fundraising infrastructure", "digital giving"],
         typical_grant_size: 150000,
         latest_filing_year: 2023,
@@ -889,7 +891,7 @@ const causeFallbackCatalog = [
       {
         name: "The Old Oak Foundation",
         location: "United States",
-        geography: "Washington, DC, United States",
+        geography: "United States national nonprofit capacity infrastructure",
         focus_areas: ["nonprofit capacity", "digital equity", "community services", "technology access"],
         typical_grant_size: 75000,
         latest_filing_year: 2024,
@@ -910,7 +912,7 @@ const causeFallbackCatalog = [
         name: "Knight Foundation",
         location: "Miami, FL",
         website: "https://knightfoundation.org/",
-        geography: "Washington, DC, United States and selected communities",
+        geography: "United States national and selected communities",
         focus_areas: ["technology", "civic information", "digital transformation", "community infrastructure"],
         typical_grant_size: 200000,
         guidelineStatus: "New-candidate seed for nonprofit technology and civic infrastructure. Verify whether the current strategy fits nonprofit fundraising or technology capacity.",
@@ -922,7 +924,7 @@ const causeFallbackCatalog = [
         name: "Omidyar Network",
         location: "Redwood City, CA",
         website: "https://omidyar.com/",
-        geography: "Washington, DC, United States and global",
+        geography: "United States national and global",
         focus_areas: ["digital society", "technology for public good", "philanthropy infrastructure", "responsible technology"],
         typical_grant_size: 250000,
         guidelineStatus: "New-candidate seed for digital civil society and technology infrastructure. Verify current funding vehicles and whether grants are made directly to U.S. nonprofits.",
@@ -1437,6 +1439,7 @@ function cleanWords(value) {
 
 function geographyTerms(profile) {
   const raw = text(profile.geographyServed).toLowerCase();
+  const scope = operatingGeographyScope(profile);
   const terms = raw
     .split(/[,;/]|\band\b|\bwith\b|\bplus\b/)
     .map((term) => term.trim())
@@ -1448,10 +1451,10 @@ function geographyTerms(profile) {
   } else if (/\bny\b|new york/.test(raw)) {
     expanded.add("new york");
   }
-  if (/washington,\s*dc|washington dc|district of columbia|\bdc\b/.test(raw)) {
+  if (scope === "place_based" && /washington,\s*dc|washington dc|district of columbia|\bdc\b/.test(raw)) {
     ["washington dc", "washington, dc", "district of columbia"].forEach((term) => expanded.add(term));
   }
-  if (/raleigh|durham|cary|wake county|triangle region|\btriangle\b/.test(raw)) {
+  if (scope === "place_based" && /raleigh|durham|cary|wake county|triangle region|\btriangle\b/.test(raw)) {
     ["raleigh", "durham", "cary", "wake county", "triangle"].forEach((term) => {
       if (raw.includes(term)) {
         expanded.add(term);
@@ -1465,6 +1468,12 @@ function geographyTerms(profile) {
       }
     });
   }
+  if (scope === "national") {
+    ["united states", "u.s.", "usa", "national"].forEach((term) => expanded.add(term));
+  }
+  if (scope === "international") {
+    ["global", "international", "global south", "low- and middle-income", "low and middle income", "lmic", "worldwide"].forEach((term) => expanded.add(term));
+  }
   return [...expanded];
 }
 
@@ -1475,11 +1484,38 @@ function isBroadGeographyTerm(term) {
 }
 
 function profileHasNationalScope(profile) {
-  return /\b(?:national|nationwide|united states|u\.?s\.?|usa)\b/i.test(text(profile.geographyServed));
+  return operatingGeographyScope(profile) === "national";
 }
 
 function profileHasInternationalScope(profile) {
-  return /\b(?:global|international|south asia|global south|low- and middle-income|low and middle income|lmic|india|nepal|kyrgyzstan|bangladesh|pakistan|sri lanka)\b/i.test(text(profile.geographyServed));
+  return operatingGeographyScope(profile) === "international";
+}
+
+function operatingGeographyScope(profile) {
+  const raw = [
+    profile.operatingGeography,
+    profile.serviceArea,
+    profile.geographyServed,
+  ].map(text).join(" ").toLowerCase();
+  if (/\b(?:global|international|global south|low- and middle-income|low and middle income|lmic|worldwide|south asia|india|nepal|kyrgyzstan|bangladesh|pakistan|sri lanka|africa|latin america)\b/.test(raw)) {
+    return "international";
+  }
+  if (/\b(?:national|nationally|nationwide|united states|u\.?s\.?|usa|across the country)\b/.test(raw)) {
+    return "national";
+  }
+  return "place_based";
+}
+
+function operatingGeographyLabel(profile) {
+  const scope = operatingGeographyScope(profile);
+  if (scope === "national") {
+    return "United States national";
+  }
+  if (scope === "international") {
+    return "global and low- and middle-income country";
+  }
+  const geoList = geographyTerms(profile);
+  return geoList.find((term) => term.includes("new york city")) ?? geoList[0] ?? text(profile.geographyServed).trim();
 }
 
 function profileHasGlobalHealthScope(profile) {
@@ -1521,6 +1557,9 @@ function candidateGeographyText(candidate) {
 }
 
 function regionalFallbackCandidates(profile) {
+  if (operatingGeographyScope(profile) !== "place_based") {
+    return [];
+  }
   const geography = text(profile.geographyServed);
   const matches = Object.values(regionalFallbackCatalog).filter((region) => (
     region.aliases.some((pattern) => pattern.test(geography))
@@ -2186,8 +2225,7 @@ function buildSearchQueries(profile, mode = "primary") {
   const primary = compact[0] ?? "nonprofit community programs";
   const secondary = compact[1] ?? compact[0] ?? "nonprofit grants";
   const geo = text(profile.geographyServed).trim();
-  const geoList = geographyTerms(profile);
-  const localGeo = geoList.find((term) => term.includes("new york city")) ?? geoList[0] ?? geo;
+  const localGeo = operatingGeographyLabel(profile) || geo;
   const healthProfile = [
     profile.mission,
     profile.programsOrFundingNeeds,

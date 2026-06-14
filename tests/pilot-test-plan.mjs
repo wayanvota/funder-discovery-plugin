@@ -91,6 +91,7 @@ const triangleYmcaFallback = await runDiscovery({
     mission: "Community-based YMCA focused on youth development, healthy living, and social responsibility.",
     programsOrFundingNeeds: "Program support for youth development, camp scholarships, swim safety, after-school programs, youth sports, and family programs.",
     geographyServed: "Raleigh, Durham, Cary, Wake County, and the Triangle region of North Carolina",
+    operatingGeography: "place_based",
     beneficiaries: "Children, teens, families, and communities needing affordable youth and wellness programs.",
     desiredGrantSize: { min: 50000, max: 150000 },
     fundingType: "Program support",
@@ -110,12 +111,21 @@ const techSoupProfile = {
   mission: "Help nonprofits access donated and discounted technology, training, implementation support, and fundraising infrastructure.",
   programsOrFundingNeeds: "Program support for nonprofit technology access, digital capacity building, fundraising infrastructure, and support for small and mid-sized nonprofits.",
   geographyServed: "United States with a Washington DC nonprofit and fundraising infrastructure context",
+  operatingGeography: "national",
   beneficiaries: "Nonprofit organizations, social sector staff, and donors using technology to raise money and operate better.",
   desiredGrantSize: { min: 50000, max: 250000 },
   fundingType: "Program support",
 };
 const techSoupQueries = buildSearchQueries(techSoupProfile, "primary");
+const techSoupLocalQueries = buildSearchQueries(techSoupProfile, "local");
 assert(techSoupQueries.some((query) => /nonprofit technology|TechSoup|Network for Good|fundraising infrastructure/i.test(query)), "TechSoup search queries should include nonprofit technology and fundraising infrastructure terms.");
+assert(techSoupLocalQueries.some((query) => /United States national/i.test(query)), "National profiles should generate national second-pass geography queries.");
+assert(!techSoupLocalQueries.some((query) => /Washington|District of Columbia|\bDC\b/i.test(query)), "National profiles should not treat headquarters/context cities as local service geography.");
+const techSoupRegionalOnly = await runDiscovery({
+  organizationProfile: techSoupProfile,
+  options: { shortlistSize: 3, regionalFallbackOnly: true },
+});
+assert(techSoupRegionalOnly.prospects.length === 0, "National profiles should not trigger place-based regional fallbacks.");
 const techSoupFallback = await runDiscovery({
   organizationProfile: techSoupProfile,
   options: { shortlistSize: 5, causeFallbackOnly: true },
@@ -133,12 +143,16 @@ const digitalGreenProfile = {
   mission: "Support small-scale farmers with AI-enabled, locally relevant agricultural advice and climate-smart farming guidance.",
   programsOrFundingNeeds: "Program support for digital agriculture, AI tools for smallholder farmers, climate-smart agriculture, farmer livelihoods, and scaling advisory systems with government and partner networks.",
   geographyServed: "Global smallholder farmer communities, especially low- and middle-income country agriculture contexts",
+  operatingGeography: "international",
   beneficiaries: "Smallholder farmers, women farmers, agricultural extension partners, and rural communities.",
   desiredGrantSize: { min: 250000, max: 1000000 },
   fundingType: "Program support",
 };
 const digitalGreenQueries = buildSearchQueries(digitalGreenProfile, "primary");
+const digitalGreenLocalQueries = buildSearchQueries(digitalGreenProfile, "local");
 assert(digitalGreenQueries.some((query) => /digital agriculture|smallholder|Digital Green|FarmerChat/i.test(query)), "Digital Green search queries should include digital agriculture and smallholder terms.");
+assert(digitalGreenLocalQueries.some((query) => /global and low- and middle-income country/i.test(query)), "International profiles should generate global or LMIC second-pass geography queries.");
+assert(!digitalGreenLocalQueries.some((query) => /California|San Francisco|Bay Area/i.test(query)), "International profiles should not treat headquarters geography as service geography.");
 const digitalGreenFallback = await runDiscovery({
   organizationProfile: digitalGreenProfile,
   options: { shortlistSize: 5, causeFallbackOnly: true },

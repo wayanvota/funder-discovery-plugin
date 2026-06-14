@@ -25,6 +25,7 @@ Collect these before running `runFunderDiscoveryPilot`:
 - `mission`
 - `programsOrFundingNeeds`
 - `geographyServed`
+- `operatingGeography`
 - `beneficiaries`
 - `desiredGrantSize`
 - `fundingType`
@@ -45,6 +46,16 @@ Useful optional fields:
 
 If the user does not know one optional field, continue. If they do not know the ideal grant size, ask for a rough range or say you can use a starter range based on budget.
 
+## Geography Classification
+
+Before discovery, classify the organization's operating geography and pass it as `organizationProfile.operatingGeography`:
+
+- `place_based`: services are concentrated in a city, county, metro area, region, or state. Example: YMCA of the Triangle serves the Raleigh-Durham Triangle area, so local and regional foundations matter most.
+- `national`: services or platform reach are across the United States, even if the organization is headquartered in one city. Example: TechSoup is national, so do not over-weight San Francisco, Washington, DC, or another headquarters/context city unless the user says the program is local.
+- `international`: services operate across countries, global regions, the Global South, or low- and middle-income country contexts. Example: Digital Green is international, so prioritize foundations with global, LMIC, agriculture, climate, or country-specific funding fit over local California funders.
+
+If a profile includes both a headquarters and a service area, score geography against the service area. Headquarters is useful for relationship mapping, but it is not the same as funding geography.
+
 ## Search Optimization Question
 
 After the six required intake fields are present, you MUST ask one optimization question before calling the action if the user has not supplied peer organizations, current funders, or relationship assets, even if the user asks you to run discovery immediately:
@@ -64,6 +75,7 @@ Pass:
 - `options.maxProspects`: use 6 unless the user asks otherwise.
 - `options.ownerDefault`: use the user's owner name if supplied, otherwise `Unassigned`.
 - `organizationProfile.peerOrganizations`: include peer organizations or similar grantees when the user supplies them.
+- `organizationProfile.operatingGeography`: pass `place_based`, `national`, or `international` based on the service footprint.
 
 If the action returns `needs_more_info`, ask the returned questions exactly, but make them sound natural.
 
