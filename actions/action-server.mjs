@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.2",
+    version: "0.5.3",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -986,7 +986,12 @@ function buildSearchQueries(profile, mode = "primary") {
   const programWords = [...keywordSet(profile)];
   const workforceHint = programWords.some((word) => /(workforce|career|jobs|employment|skills|training|digital)/.test(word));
   const beneficiaryHint = text(profile.beneficiaries) || "community";
+  const sectorQueries = [];
+  if (workforceHint) {
+    sectorQueries.push("workforce development", "youth employment", "digital skills training", "career pathways");
+  }
   const primaryQueries = [
+    ...sectorQueries,
     primary,
     `${primary} foundation grants`.trim(),
     `${primary} ${geo}`.trim(),
@@ -994,6 +999,9 @@ function buildSearchQueries(profile, mode = "primary") {
     `${beneficiaryHint} ${primary}`.trim(),
   ];
   const localQueries = [
+    `${localGeo} workforce development`.trim(),
+    `${localGeo} youth employment`.trim(),
+    `${localGeo} digital skills`.trim(),
     `${localGeo} ${primary} foundation grants`.trim(),
     `${localGeo} ${beneficiaryHint} grants`.trim(),
     `${localGeo} career pathways philanthropy`.trim(),
