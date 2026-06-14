@@ -2,6 +2,7 @@ process.env.FUNDER_DISCOVERY_MOCK = "1";
 
 const {
   buildPipelineRows,
+  buildSearchQueries,
   checkProfile,
   runDiscovery,
   scoreProspect,
@@ -95,6 +96,16 @@ const intelehealthProfile = {
   fundingType: "Program support",
   evidenceOfResults: "Telemedicine program in India and Kyrgyzstan supports 10 million teleconsults a year. Birthing program is rolling out in Nepal this year.",
 };
+const intelehealthWithPeers = {
+  ...intelehealthProfile,
+  peerOrganizations: ["Dimagi", "Medic", "Last Mile Health", "Nexleaf", "Noora Health"],
+};
+const intelehealthPrimaryQueries = buildSearchQueries(intelehealthWithPeers, "primary");
+const intelehealthLocalQueries = buildSearchQueries(intelehealthWithPeers, "local");
+assert(intelehealthPrimaryQueries.some((query) => /Dimagi funders/i.test(query)), "Intelehealth primary queries should anchor on peer organizations.");
+assert(intelehealthPrimaryQueries.some((query) => /global health|telemedicine|maternal newborn|primary care|digital health/i.test(query)), "Intelehealth primary queries should include global health search terms.");
+assert(!intelehealthPrimaryQueries.some((query) => /workforce|youth employment|digital skills|career pathways/i.test(query)), "Digital health should not trigger workforce primary queries.");
+assert(!intelehealthLocalQueries.some((query) => /workforce|youth employment|digital skills|career pathways/i.test(query)), "Digital health should not trigger workforce local queries.");
 const intelehealth = await runDiscovery({
   organizationProfile: intelehealthProfile,
   options: { shortlistSize: 5, causeFallbackOnly: true },

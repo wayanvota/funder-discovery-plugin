@@ -27,7 +27,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.1",
+    version: "0.6.2",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -1668,8 +1668,6 @@ function buildSearchQueries(profile, mode = "primary") {
   const geo = text(profile.geographyServed).trim();
   const geoList = geographyTerms(profile);
   const localGeo = geoList.find((term) => term.includes("new york city")) ?? geoList[0] ?? geo;
-  const programWords = [...keywordSet(profile)];
-  const workforceHint = programWords.some((word) => /(workforce|career|jobs|employment|skills|training|digital)/.test(word));
   const healthProfile = [
     profile.mission,
     profile.programsOrFundingNeeds,
@@ -1678,6 +1676,18 @@ function buildSearchQueries(profile, mode = "primary") {
     profile.evidenceOfResults,
   ].map(text).join(" ").toLowerCase();
   const globalHealthHint = /(global health|digital health|telemedicine|telehealth|primary care|maternal|birthing|delivery ward|newborn|south asia|india|nepal|kyrgyzstan|hospital|healthcare)/.test(healthProfile);
+  const programWords = [...keywordSet(profile)];
+  const workforceProfile = [
+    profile.mission,
+    profile.programsOrFundingNeeds,
+    profile.beneficiaries,
+    profile.fundingType,
+  ].map(text).join(" ").toLowerCase();
+  const workforceHint = !globalHealthHint && (
+    /\b(workforce|career|jobs?|employment|living-wage|apprenticeship|job placement|career pathways)\b/.test(workforceProfile)
+    || (/\bdigital skills?\b/.test(workforceProfile) && /\b(work|career|job|employment|training)\b/.test(workforceProfile))
+    || programWords.some((word) => /^(workforce|career|employment|apprenticeship)$/.test(word))
+  );
   const beneficiaryHint = text(profile.beneficiaries) || "community";
   const peers = peerOrganizationList(profile);
   const sectorQueries = [];
@@ -1695,9 +1705,8 @@ function buildSearchQueries(profile, mode = "primary") {
     );
   }
   const primaryQueries = [
-    ...peers.map((peer) => `${peer} funders`),
-    ...peers.map((peer) => `${peer} foundation grants`),
     ...sectorQueries,
+    ...peers.map((peer) => `${peer} funders`),
     primary,
     `${primary} foundation grants`.trim(),
     `${primary} ${geo}`.trim(),
@@ -1705,18 +1714,20 @@ function buildSearchQueries(profile, mode = "primary") {
     `${beneficiaryHint} ${primary}`.trim(),
   ];
   const localQueries = [
-    `${localGeo} workforce development`.trim(),
-    `${localGeo} youth employment`.trim(),
-    `${localGeo} digital skills`.trim(),
     `${localGeo} ${primary} foundation grants`.trim(),
     `${localGeo} ${beneficiaryHint} grants`.trim(),
-    `${localGeo} career pathways philanthropy`.trim(),
-    `${localGeo} youth employment foundation grants`.trim(),
-    `${localGeo} digital skills foundation grants`.trim(),
-    `${localGeo} workforce development foundation grants`.trim(),
   ];
   if (workforceHint) {
-    localQueries.unshift(`${localGeo} workforce training grants young adults`);
+    localQueries.unshift(
+      `${localGeo} workforce training grants young adults`,
+      `${localGeo} workforce development`,
+      `${localGeo} youth employment`,
+      `${localGeo} digital skills`,
+      `${localGeo} career pathways philanthropy`,
+      `${localGeo} youth employment foundation grants`,
+      `${localGeo} digital skills foundation grants`,
+      `${localGeo} workforce development foundation grants`,
+    );
   }
   if (globalHealthHint) {
     localQueries.unshift(
@@ -2606,6 +2617,7 @@ export {
   checkProfile,
   runDiscovery,
   scoreProspect,
+  buildSearchQueries,
   buildPipelineRows,
   buildXlsx,
   rowsToCsv,
