@@ -35,7 +35,7 @@ const openApi = {
         responses: {
           "200": {
             description: "API health status",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: { "application/json": { schema: { $ref: "#/components/schemas/HealthResponse" } } },
           },
         },
       },
@@ -85,7 +85,7 @@ const openApi = {
         responses: {
           "200": {
             description: "Scored candidate foundations",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: { "application/json": { schema: { $ref: "#/components/schemas/ScoreResponse" } } },
           },
         },
       },
@@ -101,7 +101,7 @@ const openApi = {
         responses: {
           "200": {
             description: "CSV pipeline",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: { "application/json": { schema: { $ref: "#/components/schemas/PipelineCsvResponse" } } },
           },
         },
       },
@@ -109,6 +109,15 @@ const openApi = {
   },
   components: {
     schemas: {
+      HealthResponse: {
+        type: "object",
+        properties: {
+          status: { type: "string" },
+          service: { type: "string" },
+          mockMode: { type: "boolean" },
+          timestamp: { type: "string" },
+        },
+      },
       OrganizationProfile: {
         type: "object",
         additionalProperties: true,
@@ -203,6 +212,12 @@ const openApi = {
         },
         required: ["organizationProfile", "prospects"],
       },
+      ScoreResponse: {
+        type: "object",
+        properties: {
+          prospects: { type: "array", items: { $ref: "#/components/schemas/CompactProspect" } },
+        },
+      },
       PipelineCsvRequest: {
         type: "object",
         properties: {
@@ -211,6 +226,40 @@ const openApi = {
           ownerDefault: { type: "string", default: "Unassigned" },
         },
         required: ["organizationProfile", "prospects"],
+      },
+      PipelineCsvResponse: {
+        type: "object",
+        properties: {
+          pipelineRows: { type: "array", items: { type: "object", additionalProperties: true } },
+          csv: { type: "string" },
+        },
+      },
+      CompactProspect: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          rank: { type: "integer" },
+          name: { type: "string" },
+          ein: { type: "string" },
+          location: { type: "string" },
+          website: { type: "string" },
+          latest_filing_year: { type: "integer" },
+          total_assets: { type: "number" },
+          annual_grants: { type: "number" },
+          typical_grant_size: { type: "number" },
+          programFitScore: { type: "integer" },
+          geographyFitScore: { type: "integer" },
+          grantSizeFitScore: { type: "integer" },
+          recencyScore: { type: "integer" },
+          opennessScore: { type: "integer" },
+          relationshipPathScore: { type: "integer" },
+          totalFitScore: { type: "integer" },
+          confidence: { type: "string" },
+          rationale: { type: "string" },
+          mainRisk: { type: "string" },
+          recommendedAsk: { type: "string" },
+          nextAction: { type: "string" },
+        },
       },
     },
   },
@@ -807,7 +856,7 @@ async function getPropublicaFilings(ein) {
 }
 
 function buildBrief(profile, prospect, rank) {
-  const grants = Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 3) : [];
+  const grants = Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 2).map(compactGrant) : [];
   return {
     rank,
     foundationName: prospect.name,
@@ -824,8 +873,8 @@ function buildBrief(profile, prospect, rank) {
       typicalGrantSize: prospect.typical_grant_size ? formatMoney(prospect.typical_grant_size) : "Not found in available data",
     },
     givingPattern: {
-      focusAreas: prospect.focus_areas ?? "Not found in available data",
-      geography: prospect.geography ?? "Not found in available data",
+      focusAreas: compactList(prospect.focus_areas, 4) || "Not found in available data",
+      geography: compactValue(prospect.geography, 240) || "Not found in available data",
       recentGrants: grants.length > 0 ? grants : "Not found in available data",
     },
     fitSignals: {
@@ -840,6 +889,65 @@ function buildBrief(profile, prospect, rank) {
       confidence: prospect.confidence,
     },
     risk: prospect.mainRisk,
+  };
+}
+
+function compactGrant(grant) {
+  return {
+    recipient: grant.recipient ?? grant.recipient_name ?? grant.grantee ?? grant.organization_name ?? "",
+    amount: grant.amount ?? grant.grant_amount ?? "",
+    year: grant.year ?? grant.tax_year ?? grant.filing_year ?? "",
+    purpose: compactValue(grant.purpose ?? grant.description ?? grant.grant_purpose ?? "", 180),
+  };
+}
+
+function compactList(value, limit = 5) {
+  if (Array.isArray(value)) {
+    return value.map((item) => compactValue(item, 80)).filter(Boolean).slice(0, limit);
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .slice(0, limit)
+      .map(([key, item]) => `${key}: ${compactValue(item, 60)}`);
+  }
+  return compactValue(value, 240);
+}
+
+function compactValue(value, maxLength = 240) {
+  const string = text(value).replace(/\s+/g, " ").trim();
+  if (string.length <= maxLength) {
+    return string;
+  }
+  return `${string.slice(0, maxLength - 3)}...`;
+}
+
+function compactProspect(prospect, rank, profile) {
+  return {
+    rank,
+    name: prospect.name,
+    ein: prospect.ein ?? "",
+    location: compactValue(prospect.location, 120),
+    website: prospect.website ?? "",
+    latest_filing_year: prospect.latest_filing_year ?? "",
+    total_assets: prospect.total_assets ?? "",
+    annual_grants: prospect.annual_grants ?? "",
+    typical_grant_size: prospect.typical_grant_size ?? "",
+    focus_areas: compactList(prospect.focus_areas, 4),
+    geography: compactValue(prospect.geography, 200),
+    sample_grants: Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 2).map(compactGrant) : [],
+    programFitScore: prospect.programFitScore,
+    geographyFitScore: prospect.geographyFitScore,
+    grantSizeFitScore: prospect.grantSizeFitScore,
+    recencyScore: prospect.recencyScore,
+    opennessScore: prospect.opennessScore,
+    relationshipPathScore: prospect.relationshipPathScore,
+    totalFitScore: prospect.totalFitScore,
+    confidence: prospect.confidence,
+    rationale: compactValue(prospect.rationale, 300),
+    mainRisk: compactValue(prospect.mainRisk, 220),
+    recommendedAsk: recommendedAsk(prospect, profile),
+    nextAction: nextActionFor(prospect),
+    source_links: [prospect.website, prospect.filing_pdf_url].filter(Boolean).join(" "),
   };
 }
 
@@ -948,10 +1056,11 @@ async function runDiscovery(body) {
   const pipelineRows = buildPipelineRows(profile, prospects, options.ownerDefault ?? "Unassigned");
   const csv = rowsToCsv(pipelineRows);
   const status = sourceNotes.some((note) => /failed/i.test(note)) ? "partial" : "complete";
+  const compactProspects = prospects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
   return {
     status,
     summary: `Shortlisted ${prospects.length} foundation prospects for ${profile.organizationName ?? "the organization"}. Scores are prioritization aids, not final grant strategy.`,
-    prospects,
+    prospects: compactProspects,
     briefs,
     pipelineRows,
     csv,
@@ -961,7 +1070,7 @@ async function runDiscovery(body) {
       `Lowest-confidence shortlisted candidate: ${prospects.slice().sort((a, b) => confidenceRank(a.confidence) - confidenceRank(b.confidence))[0]?.name ?? "none"}.`,
     ],
     sourceNotes: [
-      ...sourceNotes,
+      ...sourceNotes.slice(0, 12),
       "Foundation filings can lag. Verify current guidelines, contact paths, and invitation status before outreach.",
     ],
   };
@@ -998,8 +1107,11 @@ async function handleRoute(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/api/score") {
       const body = await readJson(req);
-      const prospects = (body.prospects ?? []).map((candidate) => ({ ...candidate, ...scoreProspect(body.organizationProfile ?? {}, candidate) }));
-      return sendJson(res, 200, { prospects: prospects.sort((a, b) => b.totalFitScore - a.totalFitScore) });
+      const prospects = (body.prospects ?? [])
+        .map((candidate) => ({ ...candidate, ...scoreProspect(body.organizationProfile ?? {}, candidate) }))
+        .sort((a, b) => b.totalFitScore - a.totalFitScore)
+        .map((prospect, index) => compactProspect(prospect, index + 1, body.organizationProfile ?? {}));
+      return sendJson(res, 200, { prospects });
     }
     if (req.method === "POST" && url.pathname === "/api/pipeline/csv") {
       const body = await readJson(req);
