@@ -141,6 +141,17 @@ const broadGlobalHealthCorporate = scoreProspect(intelehealthWithPeers, {
 assert(broadGlobalHealthCorporate.prospectCategory !== "direct_grant_prospect", "Broad international health grants without peer or target-country evidence should not become direct prospects.");
 assert(broadGlobalHealthCorporate.confidence !== "High", "Broad international health grants without peer or target-country evidence should not be high confidence.");
 
+const liveGlobalHealthLanguageOnly = scoreProspect(intelehealthWithPeers, {
+  name: "India Digital Health Foundation",
+  foundation_type: "private foundation",
+  latest_filing_year: 2025,
+  typical_grant_size: 350000,
+  geography: "India and South Asia",
+  focus_areas: ["digital health", "telemedicine", "primary care"],
+  openness: "Public website",
+});
+assert(liveGlobalHealthLanguageOnly.prospectCategory === "research_only", "Live global-health language matches without peer-grantee or target-country grant evidence should stay research-only.");
+
 const expectedCsvColumns = [
   "rank",
   "foundation_name",

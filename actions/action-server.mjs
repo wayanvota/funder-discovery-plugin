@@ -29,7 +29,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.5",
+    version: "0.6.6",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -1069,6 +1069,17 @@ function profileHasInternationalScope(profile) {
   return /\b(?:global|international|south asia|global south|low- and middle-income|low and middle income|lmic|india|nepal|kyrgyzstan|bangladesh|pakistan|sri lanka)\b/i.test(text(profile.geographyServed));
 }
 
+function profileHasGlobalHealthScope(profile) {
+  return profileHasInternationalScope(profile)
+    && /\b(?:global health|digital health|telemedicine|telehealth|primary care|maternal|birthing|delivery ward|newborn|healthcare|hospital|doctor|south asia|india|nepal|kyrgyzstan)\b/i.test([
+      profile.mission,
+      profile.programsOrFundingNeeds,
+      profile.geographyServed,
+      profile.beneficiaries,
+      profile.evidenceOfResults,
+    ].map(text).join(" "));
+}
+
 function flattenText(value) {
   if (Array.isArray(value)) {
     return value.map(flattenText).filter(Boolean).join(" ");
@@ -1396,6 +1407,10 @@ function qualityGateProspect(profile, candidate, evidence) {
   };
   const hasPeerEvidence = evidence.peerMatches.length > 0
     || (Array.isArray(candidate.peerGrantEvidence) && candidate.peerGrantEvidence.length > 0);
+  const liveGlobalHealthNeedsVerification = profileHasGlobalHealthScope(profile)
+    && !isDeterministicSeed(candidate)
+    && !hasPeerEvidence
+    && evidence.geography.status !== "recent_grant_geography_match";
 
   if (evidence.funderType === "unclear") {
     cautions.push("Grantmaker status is unclear in available data.");
@@ -1411,6 +1426,8 @@ function qualityGateProspect(profile, candidate, evidence) {
   }
   if (evidence.geography.score < 8) {
     disqualifiers.push("No clear geography evidence for the user's service area.");
+  } else if (liveGlobalHealthNeedsVerification) {
+    cautions.push("Live global-health search result lacks peer-grantee or target-country grant evidence.");
   } else if (evidence.geography.status === "international_scope_but_unconfirmed_country_fit" && !hasPeerEvidence) {
     cautions.push("International scope is visible, but target country or peer-grantee fit is not confirmed.");
   } else if (evidence.geography.status === "national_but_unconfirmed_local_fit") {
@@ -1440,6 +1457,8 @@ function qualityGateProspect(profile, candidate, evidence) {
     prospectCategory = evidence.relationship.score >= 8 ? "relationship_first_prospect" : "research_only";
   } else if (evidence.openness.status === "invitation_or_closed") {
     prospectCategory = "relationship_first_prospect";
+  } else if (liveGlobalHealthNeedsVerification) {
+    prospectCategory = "research_only";
   } else if (!isDeterministicSeed(candidate)
     && evidence.geography.status === "international_scope_but_unconfirmed_country_fit"
     && !hasPeerEvidence) {
@@ -1713,7 +1732,13 @@ async function discoverCandidates(profile, options) {
   const maxPool = options?.secondPassOnly
     ? clamp(Number(options?.maxProspects ?? 6), 4, 8) + fallbackCount
     : clamp(Number(options?.maxProspects ?? 6) * 2, 6, 12) + fallbackCount;
-  const initial = [...candidates.values()].slice(0, maxPool);
+  const allCandidates = [...candidates.values()];
+  const deterministicSeeds = allCandidates.filter(isDeterministicSeed);
+  const liveCandidates = allCandidates.filter((candidate) => !isDeterministicSeed(candidate));
+  const initial = [
+    ...deterministicSeeds,
+    ...liveCandidates.slice(0, Math.max(0, maxPool - deterministicSeeds.length)),
+  ];
   const detailed = await mapWithConcurrency(initial, 4, (candidate) => enrichCandidate(candidate, profile, sourceNotes));
   return { candidates: detailed, sourceNotes };
 }
