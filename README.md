@@ -10,6 +10,8 @@ The plugin combines five fundraising skills with public 990 data workflows:
 4. Fit Scoring: apply a transparent scoring rubric.
 5. Pipeline Builder: export a CSV or CRM-ready prospect pipeline with next actions.
 
+The repository now also includes a Custom GPT Actions pilot layer for nontechnical fundraiser testing. The pilot exposes a hosted REST API and OpenAPI schema so a Custom GPT can collect organization details, run discovery, score fit, generate briefs, and return a CRM-ready CSV without asking users to install MCP servers or use Developer Mode.
+
 ## Data Sources
 
 The plugin includes a local `kindora` MCP server based on the public [wayanvota/kindora-chatgpt-mcp](https://github.com/wayanvota/kindora-chatgpt-mcp) connector. It proxies Kindora's read-only funder search, profiles, 990 summaries, grant lists, giving statistics, NTEE lookup, open grants, and philanthropy jobs.
@@ -31,7 +33,31 @@ skills/brief-generator         One-page funder brief workflow
 skills/fit-scoring             Transparent scoring rubric
 skills/pipeline-builder        CSV and CRM pipeline workflow
 docs/                          Setup and workflow notes
+actions/action-server.mjs      REST API for Custom GPT Actions pilot
+custom-gpt/                    GPT builder instructions and fields
+tests/check-actions.mjs        Deterministic pilot API test
 ```
+
+## Custom GPT Pilot
+
+Run the pilot API locally with mock data:
+
+```bash
+npm run start:actions:mock
+```
+
+Check the Actions API:
+
+```bash
+npm run check:actions
+```
+
+The Custom GPT setup package lives in:
+
+- `custom-gpt/instructions.md`
+- `custom-gpt/builder-fields.md`
+- `docs/pilot/custom-gpt-actions-pilot.md`
+- `docs/pilot/test-plan.md`
 
 ## Install From GitHub
 

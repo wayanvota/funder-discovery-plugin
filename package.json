@@ -1,10 +1,13 @@
 {
   "name": "funder-discovery-plugin",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Codex plugin for nonprofit foundation prospect discovery from public 990 data.",
   "type": "module",
   "scripts": {
+    "check:actions": "FUNDER_DISCOVERY_MOCK=1 node tests/check-actions.mjs",
     "check:mcp": "node scripts/check-mcp.mjs",
+    "start:actions": "node actions/action-server.mjs",
+    "start:actions:mock": "FUNDER_DISCOVERY_MOCK=1 node actions/action-server.mjs",
     "start:kindora": "node mcp/kindora-server.mjs",
     "start:mcp": "node mcp/server.mjs"
   },
