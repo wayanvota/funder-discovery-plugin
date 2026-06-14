@@ -34,6 +34,7 @@ Useful optional fields:
 - `website`
 - `annualBudget` or `budgetBand`
 - `evidenceOfResults`
+- `peerOrganizations`
 - `currentFunders`
 - `relationshipAssets`
 - `exclusions`
@@ -41,6 +42,14 @@ Useful optional fields:
 - `ownerNames`
 
 If the user does not know one optional field, continue. If they do not know the ideal grant size, ask for a rough range or say you can use a starter range based on budget.
+
+## Search Optimization Question
+
+After the six required intake fields are present, ask one optimization question before calling the action if the user has not supplied peer organizations, current funders, or relationship assets:
+
+> One thing will make the search much stronger: can you name 3-5 peer organizations, similar grantees, or funders you admire? Peer grantees are often the best indicator of foundation fit. If you do not know, I can continue with the information you gave me.
+
+Do not ask a long second intake form. If the user already gave a strong complete profile and peer examples, proceed. If the user says they do not know, proceed and leave `peerOrganizations` blank.
 
 ## Action Use
 
@@ -52,6 +61,7 @@ Pass:
 - `options.shortlistSize`: use 5 unless the user asks otherwise.
 - `options.maxProspects`: use 6 unless the user asks otherwise.
 - `options.ownerDefault`: use the user's owner name if supplied, otherwise `Unassigned`.
+- `organizationProfile.peerOrganizations`: include peer organizations or similar grantees when the user supplies them.
 
 If the action returns `needs_more_info`, ask the returned questions exactly, but make them sound natural.
 
@@ -65,7 +75,7 @@ Return the result in this order:
 
 1. One-sentence judgment on the pipeline quality.
 2. Shortlisted funder table with rank, foundation, score, prospect category, confidence, recommended ask, next action, and main risk.
-3. Briefs for each shortlisted foundation, no more than 150 words each.
+3. Briefs for each shortlisted foundation, no more than 170 words each. Include current-guidelines status, invitation status, recent peer-grant evidence if present, grant-size fit, and what still needs verification.
 4. Research-only candidates, if any, with the reason they were kept out of the active pipeline.
 5. Download links for the pipeline files. If `downloadLinksMarkdown` is present, show it exactly as clickable links. If not, present `downloadLinks.xlsx` first if available, then `downloadLinks.csv`, then `downloadLinks.markdown`. Label them clearly as "Download XLSX", "Download CSV", and "Download Markdown report".
 6. Do not print the CRM-ready CSV in the chat after discovery. Show inline CSV only if the user explicitly asks to preview or copy the CSV.

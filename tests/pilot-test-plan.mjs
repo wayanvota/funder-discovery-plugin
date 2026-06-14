@@ -84,6 +84,31 @@ assert(sfFallback.prospects.length >= 3, "SF regional fallback should create a u
 assert(sfFallback.prospects.some((prospect) => /San Francisco Foundation|Tipping Point|Haas/i.test(prospect.name)), "SF fallback should include recognizable Bay Area funders.");
 assert(sfFallback.prospects.every((prospect) => /San Francisco|Bay Area/i.test(`${prospect.location} ${prospect.geography} ${prospect.source_label}`)), "SF fallback prospects should carry local geography labels.");
 
+const intelehealthProfile = {
+  organizationName: "Intelehealth",
+  website: "https://Intelehealth.org",
+  mission: "A USA nonprofit that delivers quality healthcare where there is no doctor.",
+  programsOrFundingNeeds: "Healthcare in South Asia with digital health decision support tools for telemedicine in primary care and delivery wards for birthing mothers.",
+  geographyServed: "South Asia, India, Kyrgyzstan, and Nepal",
+  beneficiaries: "Patients in communities without doctors, governments optimizing telemedicine, hospitals improving delivery ward outcomes, and birthing mothers.",
+  desiredGrantSize: { min: 250000, max: 500000 },
+  fundingType: "Program support",
+  evidenceOfResults: "Telemedicine program in India and Kyrgyzstan supports 10 million teleconsults a year. Birthing program is rolling out in Nepal this year.",
+};
+const intelehealth = await runDiscovery({
+  organizationProfile: intelehealthProfile,
+  options: { shortlistSize: 5, causeFallbackOnly: true },
+});
+assert(intelehealth.status === "partial", "Intelehealth fallback-assisted results should be marked partial until verified.");
+assert(intelehealth.prospects.length >= 5, "Intelehealth should return a usable global-health shortlist.");
+assert(intelehealth.prospects.some((prospect) => /Gates/i.test(prospect.name)), "Intelehealth shortlist should include Gates as a relevant global-health seed.");
+assert(intelehealth.prospects.some((prospect) => /McGovern/i.test(prospect.name)), "Intelehealth shortlist should include McGovern as a relevant digital-health seed.");
+assert(intelehealth.prospects.every((prospect) => prospect.source_type === "cause_fallback_seed"), "Intelehealth active demo prospects should be cause fallback seeds when live search is not required.");
+assert(intelehealth.prospects.every((prospect) => prospect.confidence === "Low"), "Cause fallback prospects should stay low confidence until verified.");
+assert(intelehealth.prospects.every((prospect) => /verify/i.test(`${prospect.nextAction} ${prospect.mainRisk}`)), "Cause fallback prospects should require guidelines, peer-grant, invitation, and grant-size verification.");
+assert(intelehealth.prospects.some((prospect) => /PATH|Dimagi|Medic|Jacaranda|Living Goods/i.test(JSON.stringify(prospect.peerSignals))), "Intelehealth prospects should expose peer-signal prompts.");
+assert(intelehealth.prospects.every((prospect) => prospect.guidelineStatus && prospect.invitationStatus && prospect.grantSizeFitNote), "Intelehealth prospects should include guideline, invitation, and grant-size fit details.");
+
 const expectedCsvColumns = [
   "rank",
   "foundation_name",

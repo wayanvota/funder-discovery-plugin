@@ -28,6 +28,12 @@ The action server includes a deterministic regional fallback catalog for common 
 
 Fallback candidates are not treated as verified 990 evidence. They are labeled `regional_fallback_seed`, returned as low-confidence relationship-first prospects when mission and geography match, and marked `partial` until the user verifies current guidelines, latest filings, recent local grants, and a relationship path. Use `disableRegionalFallback: true` to turn this off, or `regionalFallbackOnly: true` for deterministic demo tests.
 
+## Cause Fallback
+
+The action server also includes a deterministic cause fallback for global health and digital health profiles, including telemedicine, primary care, maternal health, South Asia, India, Nepal, and Kyrgyzstan. This fallback is meant to stabilize demos like Intelehealth where live search can rank broad or irrelevant organizations before the funders a fundraiser would expect to review.
+
+Cause fallback candidates are labeled `cause_fallback_seed`, returned as low-confidence relationship-first prospects, and marked `partial`. The response includes guideline status, invitation status, grant-size fit notes, and peer-signal prompts, but these are starter diligence notes, not verified current grants. Use `disableCauseFallback: true` to turn this off, or `causeFallbackOnly: true` for deterministic demo tests.
+
 ## Local Run
 
 Mock mode, deterministic:

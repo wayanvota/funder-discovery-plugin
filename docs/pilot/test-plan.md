@@ -57,6 +57,22 @@ Expected:
 - It explains that scores are prioritization aids.
 - It does not paste raw CSV unless the user asks for a preview.
 
+### 3A. Peer Organization Optimization
+
+Prompt:
+
+```text
+https://Intelehealth.org is a USA nonprofit that delivers quality healthcare where there is no doctor. We focus on healthcare in South Asia. It has two digital health tools: a decision support tool to help governments optimize telemedicine for better primary care outcomes, and a decision support tool to help hospitals improve delivery wards improve outcomes for birthing mothers. we have a proven 6-step implementation methodology that overcomes many digital health failure problems. Our telemedicine program in India and Kyrgyzstan supports 10 million teleconsults a year. Our birthing program is rolling out in Nepal this year. We need program support, ideally $250,000 to $500,000.
+```
+
+Expected:
+
+- GPT asks one optimization question for peer organizations, similar grantees, current funders, or relationship assets before running discovery.
+- If the tester says to continue, GPT calls `runFunderDiscoveryPilot`.
+- The active shortlist includes relevant global-health or digital-health funders such as Gates, Patrick J. McGovern Foundation, Grand Challenges Canada, Co-Impact, Skoll, or Mulago.
+- Briefs include guideline status, invitation status, peer-grant verification need, grant-size fit, and source limitations.
+- GPT does not imply that seeded funder details are verified current grants.
+
 ### 4. Scoring Sanity
 
 Use a profile with geography in New York and desired grant size $50,000 to $150,000.

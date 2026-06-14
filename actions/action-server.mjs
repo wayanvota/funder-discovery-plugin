@@ -27,7 +27,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.0",
+    version: "0.6.1",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -153,6 +153,7 @@ const openApi = {
           fundingType: { type: "string" },
           evidenceOfResults: { type: "string" },
           currentFunders: { type: "array", items: { type: "string" } },
+          peerOrganizations: { type: "array", items: { type: "string" } },
           relationshipAssets: { type: "array", items: { type: "string" } },
           exclusions: { type: "array", items: { type: "string" } },
           deadlineContext: { type: "string" },
@@ -190,6 +191,8 @@ const openApi = {
               ownerDefault: { type: "string", default: "Unassigned" },
               mockMode: { type: "boolean", default: false },
               disableRegionalFallback: { type: "boolean", default: false },
+              disableCauseFallback: { type: "boolean", default: false },
+              causeFallbackOnly: { type: "boolean", default: false },
               regionalFallbackOnly: { type: "boolean", default: false },
             },
           },
@@ -696,6 +699,107 @@ const regionalFallbackCatalog = {
   },
 };
 
+const causeFallbackCatalog = [
+  {
+    id: "global_health_digital_health",
+    label: "global health and digital health deterministic fallback",
+    triggers: [
+      /global health/i,
+      /digital health/i,
+      /telemedicine|telehealth/i,
+      /primary care/i,
+      /maternal|birthing|delivery ward|newborn/i,
+      /south asia|india|nepal|kyrgyzstan/i,
+    ],
+    candidates: [
+      {
+        name: "Bill & Melinda Gates Foundation",
+        location: "Seattle, WA",
+        website: "https://www.gatesfoundation.org/",
+        geography: "Global health, including South Asia and low- and middle-income countries",
+        focus_areas: ["global health", "maternal newborn and child health", "primary care", "digital health", "health systems"],
+        typical_grant_size: 500000,
+        guidelineStatus: "Usually strategy-led or RFP-driven. Verify open opportunities and program officer fit before outreach.",
+        invitationStatus: "Often relationship-driven outside formal open calls.",
+        grantSizeFitNote: "A $250,000-$500,000 program ask can be plausible as a pilot, implementation, or learning grant, but Gates also makes much larger awards.",
+        peerSignals: ["PATH", "Dimagi", "Medic", "Jacaranda Health", "Living Goods"],
+      },
+      {
+        name: "Patrick J. McGovern Foundation",
+        location: "Boston, MA",
+        website: "https://www.mcgovern.org/",
+        geography: "Global and United States, with emphasis on AI and data for social impact",
+        focus_areas: ["AI for good", "data science", "digital public goods", "health equity", "responsible technology"],
+        typical_grant_size: 350000,
+        guidelineStatus: "Verify current inquiry process and whether healthcare delivery tools fit the data and AI portfolio.",
+        invitationStatus: "Likely relationship or inquiry-led. Confirm before outreach.",
+        grantSizeFitNote: "A $250,000-$500,000 ask is within a plausible program-support range for a technology-for-good funder, subject to current guidelines.",
+        peerSignals: ["DataKind", "TechChange", "digital public goods organizations", "responsible AI health initiatives"],
+      },
+      {
+        name: "Grand Challenges Canada",
+        location: "Toronto, Canada",
+        website: "https://www.grandchallenges.ca/",
+        geography: "Low- and middle-income countries, including global health innovation settings",
+        focus_areas: ["global health innovation", "transition to scale", "maternal and newborn health", "digital health", "health systems"],
+        typical_grant_size: 250000,
+        guidelineStatus: "Usually open-call or challenge-driven. Verify current funding opportunities and eligibility for a U.S. nonprofit.",
+        invitationStatus: "Open calls vary by program and deadline.",
+        grantSizeFitNote: "A $250,000-$500,000 request may fit transition-to-scale or matched innovation funding better than a general operating ask.",
+        peerSignals: ["Saving Lives at Birth innovators", "maternal newborn health implementers", "LMIC health innovation grantees"],
+      },
+      {
+        name: "Skoll Foundation",
+        location: "Palo Alto, CA",
+        website: "https://skoll.org/",
+        geography: "Global social entrepreneurship",
+        focus_areas: ["social entrepreneurship", "health equity", "systems change", "technology-enabled impact"],
+        typical_grant_size: 500000,
+        guidelineStatus: "Verify current award and partnership pathways. Often relationship-driven and selective.",
+        invitationStatus: "Usually selective and network-driven.",
+        grantSizeFitNote: "A $250,000-$500,000 ask may be plausible only if framed around scale, systems change, and proven implementation.",
+        peerSignals: ["Last Mile Health", "Living Goods", "Medic", "global health social enterprises"],
+      },
+      {
+        name: "Mulago Foundation",
+        location: "San Francisco, CA",
+        website: "https://www.mulagofoundation.org/",
+        geography: "Organizations serving people in poverty globally",
+        focus_areas: ["poverty", "health", "scalable delivery models", "high-impact organizations"],
+        typical_grant_size: 250000,
+        guidelineStatus: "Verify fit and nomination or introduction pathway. Mulago is highly selective.",
+        invitationStatus: "Relationship-driven. Warm path matters.",
+        grantSizeFitNote: "A $250,000-$500,000 ask may fit if framed around measurable scale and cost-effective health outcomes.",
+        peerSignals: ["Living Goods", "Last Mile Health", "One Acre Fund-style scale organizations", "community health implementers"],
+      },
+      {
+        name: "Co-Impact",
+        location: "Global",
+        website: "https://www.co-impact.org/",
+        geography: "Global South and systems-change initiatives",
+        focus_areas: ["systems change", "gender equality", "health systems", "education", "economic opportunity"],
+        typical_grant_size: 500000,
+        guidelineStatus: "Verify current open calls, geography, and whether the work fits systems-change criteria.",
+        invitationStatus: "Often program-led and selective.",
+        grantSizeFitNote: "A $250,000-$500,000 ask may be small for Co-Impact unless tied to a larger system-change partnership.",
+        peerSignals: ["health systems coalitions", "women and girls health initiatives", "Global South systems-change partners"],
+      },
+      {
+        name: "Johnson & Johnson Foundation",
+        location: "New Brunswick, NJ",
+        website: "https://www.jnj.com/our-societal-impact/johnson-johnson-foundation",
+        geography: "Global health workforce and health equity",
+        focus_areas: ["frontline health workers", "maternal health", "health equity", "health systems"],
+        typical_grant_size: 300000,
+        guidelineStatus: "Verify current foundation priorities, invitation status, and country eligibility.",
+        invitationStatus: "Often partnership-led.",
+        grantSizeFitNote: "A $250,000-$500,000 ask may fit health workforce or maternal health implementation if country priorities align.",
+        peerSignals: ["frontline health worker organizations", "maternal health implementers", "health workforce coalitions"],
+      },
+    ],
+  },
+];
+
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload, null, 2);
   res.writeHead(statusCode, {
@@ -781,6 +885,7 @@ function checkProfile(organizationProfile = {}) {
     .map(([, question]) => question);
   const optionalSignals = [
     "evidenceOfResults",
+    "peerOrganizations",
     "currentFunders",
     "relationshipAssets",
     "budgetBand",
@@ -795,6 +900,9 @@ function checkProfile(organizationProfile = {}) {
   const assumptions = [];
   if (isBlank(organizationProfile.relationshipAssets)) {
     assumptions.push("Relationship path will be scored conservatively until board, staff, partner, or peer-grantee connections are supplied.");
+  }
+  if (isBlank(organizationProfile.peerOrganizations)) {
+    assumptions.push("Peer organizations were not supplied. Ask for 3-5 peer organizations or similar grantees to improve funder matching.");
   }
   if (isBlank(organizationProfile.evidenceOfResults)) {
     assumptions.push("Program fit will rely on mission and grant pattern, not independently verified outcomes.");
@@ -844,6 +952,7 @@ function keywordSet(profile) {
     profile.programsOrFundingNeeds,
     profile.beneficiaries,
     profile.fundingType,
+    profile.peerOrganizations,
   ].map(text).join(" ").toLowerCase();
   const stop = new Set([
     "and", "the", "for", "with", "from", "that", "this", "our", "their", "into", "about",
@@ -856,6 +965,16 @@ function keywordSet(profile) {
       .filter((word) => word.length > 3 && !stop.has(word))
       .slice(0, 25),
   );
+}
+
+function peerOrganizationList(profile) {
+  return [
+    ...text(profile.peerOrganizations).split(/[;\n,]/),
+    ...text(profile.currentFunders).split(/[;\n,]/),
+  ]
+    .map((item) => item.trim())
+    .filter((item) => item.length > 2)
+    .slice(0, 8);
 }
 
 function haystack(candidate) {
@@ -883,6 +1002,13 @@ function geographyTerms(profile) {
   } else if (/\bny\b|new york/.test(raw)) {
     expanded.add("new york");
   }
+  if (/south asia|india|nepal|kyrgyzstan|bangladesh|pakistan|sri lanka/.test(raw)) {
+    ["south asia", "india", "nepal", "kyrgyzstan"].forEach((term) => {
+      if (raw.includes(term)) {
+        expanded.add(term);
+      }
+    });
+  }
   return [...expanded];
 }
 
@@ -894,6 +1020,10 @@ function isBroadGeographyTerm(term) {
 
 function profileHasNationalScope(profile) {
   return /\b(?:national|nationwide|united states|u\.?s\.?|usa)\b/i.test(text(profile.geographyServed));
+}
+
+function profileHasInternationalScope(profile) {
+  return /\b(?:global|international|south asia|global south|low- and middle-income|low and middle income|lmic|india|nepal|kyrgyzstan|bangladesh|pakistan|sri lanka)\b/i.test(text(profile.geographyServed));
 }
 
 function flattenText(value) {
@@ -937,6 +1067,27 @@ function regionalFallbackCandidates(profile) {
   })));
 }
 
+function causeFallbackCandidates(profile) {
+  const source = [
+    profile.organizationName,
+    profile.website,
+    profile.mission,
+    profile.programsOrFundingNeeds,
+    profile.geographyServed,
+    profile.beneficiaries,
+    profile.evidenceOfResults,
+    text(profile.peerOrganizations),
+  ].map(text).join(" ");
+  const matches = causeFallbackCatalog.filter((cause) => cause.triggers.some((pattern) => pattern.test(source)));
+  return matches.flatMap((cause) => cause.candidates.map((candidate) => normalizeCandidate({
+    ...candidate,
+    foundation_type: candidate.foundation_type ?? "cause_fallback_seed",
+    source_type: "cause_fallback_seed",
+    source_label: cause.label,
+    openness: candidate.guidelineStatus,
+  })));
+}
+
 function addRegionalFallbackCandidates(candidateMap, profile, sourceNotes) {
   const seeds = regionalFallbackCandidates(profile);
   if (seeds.length === 0) {
@@ -955,6 +1106,30 @@ function addRegionalFallbackCandidates(candidateMap, profile, sourceNotes) {
     sourceNotes.push(`Deterministic regional fallback added ${added} seed candidate(s): ${regions}. Verify all seed prospects before outreach.`);
   }
   return added;
+}
+
+function addCauseFallbackCandidates(candidateMap, profile, sourceNotes) {
+  const seeds = causeFallbackCandidates(profile);
+  if (seeds.length === 0) {
+    return 0;
+  }
+  let added = 0;
+  for (const seed of seeds) {
+    const key = text(seed.ein ?? seed.name ?? seed.legal_name ?? seed.foundation_name);
+    if (key && !candidateMap.has(key)) {
+      candidateMap.set(key, seed);
+      added += 1;
+    }
+  }
+  if (added > 0) {
+    const sources = [...new Set(seeds.map((seed) => seed.source_label).filter(Boolean))].join("; ");
+    sourceNotes.push(`Deterministic cause fallback added ${added} seed candidate(s): ${sources}. Verify current guidelines, peer grants, and invitation status before outreach.`);
+  }
+  return added;
+}
+
+function isDeterministicSeed(candidate) {
+  return candidate.source_type === "regional_fallback_seed" || candidate.source_type === "cause_fallback_seed";
 }
 
 function recentGrants(candidate) {
@@ -983,9 +1158,10 @@ function grantText(grant) {
 
 function grantsWithProgramEvidence(profile, candidate) {
   const words = [...keywordSet(profile)];
+  const peers = peerOrganizationList(profile).map((peer) => peer.toLowerCase());
   return recentGrants(candidate).filter((grant) => {
     const body = grantText(grant);
-    return words.filter((word) => body.includes(word)).length >= 2;
+    return words.filter((word) => body.includes(word)).length >= 2 || peers.some((peer) => body.includes(peer));
   });
 }
 
@@ -1072,6 +1248,9 @@ function geographyEvidence(profile, candidate) {
   if (directHits.length > 0) {
     return { score: 17, status: "profile_geography_match", hits: directHits, grantMatches };
   }
+  if (profileHasInternationalScope(profile) && /\b(global|global south|low- and middle-income|low and middle income|lmic|worldwide)\b/.test(body)) {
+    return { score: 12, status: "international_scope_but_unconfirmed_country_fit", hits: [], grantMatches };
+  }
   if (profileHasNationalScope(profile) && body.includes("national")) {
     return { score: 10, status: "national_but_unconfirmed_local_fit", hits: [], grantMatches };
   }
@@ -1124,7 +1303,7 @@ function relationshipEvidence(profile, candidate) {
 }
 
 function funderTypeStatus(candidate) {
-  if (candidate.source_type === "regional_fallback_seed") {
+  if (isDeterministicSeed(candidate)) {
     return "grantmaker";
   }
   const body = text(candidate.foundation_type ?? candidate.funder_type ?? candidate.type ?? candidate.ntee_description ?? candidate.name).toLowerCase();
@@ -1158,8 +1337,8 @@ function qualityGateProspect(profile, candidate, evidence) {
   if (evidence.funderType === "unclear") {
     cautions.push("Grantmaker status is unclear in available data.");
   }
-  if (candidate.source_type === "regional_fallback_seed") {
-    cautions.push("Candidate came from the deterministic regional fallback and needs current 990 and guideline verification.");
+  if (isDeterministicSeed(candidate)) {
+    cautions.push("Candidate came from a deterministic fallback and needs current 990, guidelines, recent peer grants, and invitation-status verification.");
   }
   if (evidence.funderType === "partnership_or_intermediary") {
     cautions.push("May be a partnership or intermediary target rather than a direct foundation prospect.");
@@ -1190,7 +1369,7 @@ function qualityGateProspect(profile, candidate, evidence) {
     prospectCategory = "reject";
   } else if (evidence.funderType === "partnership_or_intermediary") {
     prospectCategory = "partnership_or_intermediary";
-  } else if (candidate.source_type === "regional_fallback_seed" && evidence.program.score >= 12 && evidence.geography.score >= 17) {
+  } else if (isDeterministicSeed(candidate) && evidence.program.score >= 12 && evidence.geography.score >= 10) {
     prospectCategory = "relationship_first_prospect";
   } else if (evidence.grantSize.status === "typical_grant_far_above_range") {
     prospectCategory = evidence.relationship.score >= 8 ? "relationship_first_prospect" : "research_only";
@@ -1212,6 +1391,9 @@ function qualityGateProspect(profile, candidate, evidence) {
 }
 
 function confidenceForEvidence(gate, evidence) {
+  if (gate.evidenceFlags.sourceType === "regional_fallback_seed" || gate.evidenceFlags.sourceType === "cause_fallback_seed") {
+    return "Low";
+  }
   const essentials = [
     evidence.program.score >= 17,
     evidence.geography.score >= 17,
@@ -1269,8 +1451,14 @@ function clamp(value, min, max) {
 
 function buildRationale(candidate, evidence) {
   const parts = [];
-  if (candidate.source_type === "regional_fallback_seed") {
-    parts.push("Regional fallback seed based on common local funder lists, not verified recent grant evidence.");
+  if (isDeterministicSeed(candidate)) {
+    parts.push("Deterministic fallback seed based on known funder focus patterns, not verified recent grant evidence.");
+  }
+  if (candidate.guidelineStatus) {
+    parts.push(`Guidelines status: ${candidate.guidelineStatus}`);
+  }
+  if (candidate.grantSizeFitNote) {
+    parts.push(`Grant-size fit note: ${candidate.grantSizeFitNote}`);
   }
   if (evidence.program.grantMatches.length > 0) {
     parts.push(`${evidence.program.grantMatches.length} recent grant(s) show program fit.`);
@@ -1292,8 +1480,8 @@ function buildRationale(candidate, evidence) {
 }
 
 function buildRisk(candidate, gate) {
-  if (candidate.source_type === "regional_fallback_seed") {
-    return "Seeded regional prospect. Verify current 990 data, guidelines, geography, and recent grantees before outreach.";
+  if (isDeterministicSeed(candidate)) {
+    return "Seeded prospect. Verify current 990 data, guidelines, recent peer grants, invitation status, and grant-size fit before outreach.";
   }
   if (gate.disqualifiers.length > 0) {
     return gate.disqualifiers[0];
@@ -1382,6 +1570,17 @@ function tryParseTextContent(result) {
 }
 
 async function discoverCandidates(profile, options) {
+  if (options?.causeFallbackOnly) {
+    const candidates = causeFallbackCandidates(profile);
+    const sources = [...new Set(candidates.map((candidate) => candidate.source_label).filter(Boolean))].join("; ");
+    return {
+      candidates,
+      sourceNotes: candidates.length > 0
+        ? [`Deterministic cause fallback only: ${candidates.length} seed candidate(s) for ${sources}. Verify current guidelines, peer grants, and invitation status before outreach.`]
+        : ["Deterministic cause fallback only: no matching cause seed candidates found."],
+    };
+  }
+
   if (options?.regionalFallbackOnly) {
     const candidates = regionalFallbackCandidates(profile);
     const regions = [...new Set(candidates.map((candidate) => candidate.source_label).filter(Boolean))].join("; ");
@@ -1431,15 +1630,30 @@ async function discoverCandidates(profile, options) {
   const regionalFallbackCount = options?.disableRegionalFallback
     ? 0
     : addRegionalFallbackCandidates(candidates, profile, sourceNotes);
+  const causeFallbackCount = options?.disableCauseFallback
+    ? 0
+    : addCauseFallbackCandidates(candidates, profile, sourceNotes);
+  const fallbackCount = regionalFallbackCount + causeFallbackCount;
   const maxPool = options?.secondPassOnly
-    ? clamp(Number(options?.maxProspects ?? 6), 4, 8) + regionalFallbackCount
-    : clamp(Number(options?.maxProspects ?? 6) * 2, 6, 12) + regionalFallbackCount;
+    ? clamp(Number(options?.maxProspects ?? 6), 4, 8) + fallbackCount
+    : clamp(Number(options?.maxProspects ?? 6) * 2, 6, 12) + fallbackCount;
   const initial = [...candidates.values()].slice(0, maxPool);
-  const detailed = [];
-  for (const candidate of initial) {
-    detailed.push(await enrichCandidate(candidate, profile, sourceNotes));
-  }
+  const detailed = await mapWithConcurrency(initial, 4, (candidate) => enrichCandidate(candidate, profile, sourceNotes));
   return { candidates: detailed, sourceNotes };
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
 }
 
 function buildSearchQueries(profile, mode = "primary") {
@@ -1456,12 +1670,33 @@ function buildSearchQueries(profile, mode = "primary") {
   const localGeo = geoList.find((term) => term.includes("new york city")) ?? geoList[0] ?? geo;
   const programWords = [...keywordSet(profile)];
   const workforceHint = programWords.some((word) => /(workforce|career|jobs|employment|skills|training|digital)/.test(word));
+  const healthProfile = [
+    profile.mission,
+    profile.programsOrFundingNeeds,
+    profile.geographyServed,
+    profile.beneficiaries,
+    profile.evidenceOfResults,
+  ].map(text).join(" ").toLowerCase();
+  const globalHealthHint = /(global health|digital health|telemedicine|telehealth|primary care|maternal|birthing|delivery ward|newborn|south asia|india|nepal|kyrgyzstan|hospital|healthcare)/.test(healthProfile);
   const beneficiaryHint = text(profile.beneficiaries) || "community";
+  const peers = peerOrganizationList(profile);
   const sectorQueries = [];
   if (workforceHint) {
     sectorQueries.push("workforce development", "youth employment", "digital skills training", "career pathways");
   }
+  if (globalHealthHint) {
+    sectorQueries.push(
+      "global health digital health",
+      "telemedicine global health",
+      "maternal newborn health digital health",
+      "primary care South Asia",
+      "India telemedicine health systems",
+      "digital health foundation grants",
+    );
+  }
   const primaryQueries = [
+    ...peers.map((peer) => `${peer} funders`),
+    ...peers.map((peer) => `${peer} foundation grants`),
     ...sectorQueries,
     primary,
     `${primary} foundation grants`.trim(),
@@ -1483,8 +1718,16 @@ function buildSearchQueries(profile, mode = "primary") {
   if (workforceHint) {
     localQueries.unshift(`${localGeo} workforce training grants young adults`);
   }
+  if (globalHealthHint) {
+    localQueries.unshift(
+      `${localGeo} digital health foundation grants`,
+      `${localGeo} global health foundation grants`,
+      `${localGeo} maternal health foundation grants`,
+      `${localGeo} telemedicine foundation grants`,
+    );
+  }
   const selected = mode === "local" ? localQueries : primaryQueries;
-  return [...new Set(selected.map((query) => query.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, mode === "local" ? 6 : 5);
+  return [...new Set(selected.map((query) => query.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, mode === "local" ? 8 : 8);
 }
 
 function extractCandidates(result) {
@@ -1652,6 +1895,12 @@ function buildBrief(profile, prospect, rank) {
       geography: compactValue(prospect.geography, 240) || "Not found in available data",
       recentGrants: grants.length > 0 ? grants : "Not found in available data",
     },
+    dueDiligence: {
+      guidelineStatus: prospect.guidelineStatus || "Verify current guidelines before outreach",
+      invitationStatus: prospect.invitationStatus || prospect.openness || "Verify invitation status before outreach",
+      grantSizeFit: prospect.grantSizeFitNote || `Compared against desired grant size: ${text(profile.desiredGrantSize)}`,
+      peerSignals: compactList(prospect.peerSignals, 6) || "Ask for peer organizations or verify recent peer grantees",
+    },
     fitSignals: {
       prospectCategory: prospect.prospectCategory,
       programFit: prospect.rationale,
@@ -1726,6 +1975,10 @@ function compactProspect(prospect, rank, profile) {
     geography: compactValue(prospect.geography, 200),
     source_type: prospect.source_type ?? "",
     source_label: prospect.source_label ?? "",
+    guidelineStatus: compactValue(prospect.guidelineStatus, 240),
+    invitationStatus: compactValue(prospect.invitationStatus, 180),
+    grantSizeFitNote: compactValue(prospect.grantSizeFitNote, 220),
+    peerSignals: compactList(prospect.peerSignals, 6),
     sample_grants: Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 2).map(compactGrant) : [],
     programFitScore: prospect.programFitScore,
     geographyFitScore: prospect.geographyFitScore,
@@ -1748,8 +2001,8 @@ function compactProspect(prospect, rank, profile) {
 }
 
 function nextActionFor(prospect) {
-  if (prospect.source_type === "regional_fallback_seed") {
-    return "Verify current guidelines, latest 990 data, recent local grants, and a warm introduction path before outreach.";
+  if (isDeterministicSeed(prospect)) {
+    return "Verify current guidelines, recent grants to peer organizations, invitation status, grant-size fit, and a warm introduction path before outreach.";
   }
   if (prospect.prospectCategory === "reject") {
     return "Do not prioritize unless new evidence resolves the disqualifier.";
@@ -1896,6 +2149,10 @@ function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNot
       `- Annual grants paid: ${brief.financialCapacity?.annualGrantsPaid ?? "Not found"}`,
       `- Typical grant size: ${brief.financialCapacity?.typicalGrantSize ?? "Not found"}`,
       `- Fit signal: ${brief.fitSignals?.programFit ?? "Not found"}`,
+      `- Guidelines status: ${brief.dueDiligence?.guidelineStatus ?? "Verify current guidelines before outreach"}`,
+      `- Invitation status: ${brief.dueDiligence?.invitationStatus ?? "Verify invitation status before outreach"}`,
+      `- Grant-size fit: ${brief.dueDiligence?.grantSizeFit ?? "Verify grant-size fit before outreach"}`,
+      `- Peer signals to verify: ${text(brief.dueDiligence?.peerSignals) || "Ask for peer organizations or verify recent peer grantees"}`,
       `- Recommended move: ${brief.recommendedMove?.nextAction ?? "Verify current guidelines"}`,
       `- Risk: ${brief.risk ?? "Verify before outreach"}`,
       `- Why not / caution: ${brief.whyNot ?? "No major fit concern found in available data."}`,
@@ -2183,7 +2440,7 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
   const shortlistSize = clamp(Number(options.shortlistSize ?? 5), 3, 8);
   let scored = rankProspects(candidates.map((candidate) => ({ ...candidate, ...scoreProspect(profile, candidate) })));
   let activeCandidates = activePipelineProspects(scored);
-  if (!USE_MOCK_DATA && !options?.mockMode && !options?.regionalFallbackOnly && activeCandidates.length < shortlistSize) {
+  if (!USE_MOCK_DATA && !options?.mockMode && !options?.regionalFallbackOnly && !options?.causeFallbackOnly && activeCandidates.length < shortlistSize) {
     const secondPass = await discoverCandidates(profile, { ...options, secondPassOnly: true });
     sourceNotes.push(`Second-pass local search triggered because only ${activeCandidates.length} active prospect(s) passed the quality gate.`);
     candidates = mergeCandidates(candidates, secondPass.candidates);
@@ -2198,8 +2455,8 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
   const briefs = prospects.map((prospect, index) => buildBrief(profile, prospect, index + 1));
   const pipelineRows = buildPipelineRows(profile, prospects, options.ownerDefault ?? "Unassigned");
   const csv = rowsToCsv(pipelineRows);
-  const usesRegionalFallback = prospects.some((prospect) => prospect.source_type === "regional_fallback_seed");
-  const status = sourceNotes.some((note) => /failed/i.test(note)) || prospects.length < 3 || usesRegionalFallback ? "partial" : "complete";
+  const usesDeterministicFallback = prospects.some((prospect) => isDeterministicSeed(prospect));
+  const status = sourceNotes.some((note) => /failed/i.test(note)) || prospects.length < 3 || usesDeterministicFallback ? "partial" : "complete";
   const compactProspects = prospects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
   const compactResearchOnly = researchOnlyProspects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
   const cappedSourceNotes = [
