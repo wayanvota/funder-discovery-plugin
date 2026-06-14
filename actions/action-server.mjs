@@ -4,7 +4,9 @@ import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
-const KINDORA_MCP_URL = (process.env.KINDORA_MCP_URL ?? "https://kindora-mcp.azurewebsites.net/mcp").replace(/\/+$/, "");
+const DEFAULT_KINDORA_MCP_URL = "https://kindora-mcp.azurewebsites.net/mcp";
+const KINDORA_MCP_URL = (process.env.KINDORA_MCP_URL ?? DEFAULT_KINDORA_MCP_URL).replace(/\/+$/, "");
+const KINDORA_FALLBACK_MCP_URL = DEFAULT_KINDORA_MCP_URL;
 const KINDORA_API_KEY = process.env.KINDORA_API_KEY;
 const KINDORA_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_TIMEOUT ?? "60000", 10);
 const USE_MOCK_DATA = process.env.FUNDER_DISCOVERY_MOCK === "1";
@@ -25,7 +27,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.5",
+    version: "0.5.6",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -908,7 +910,7 @@ function parseSseOrJson(textBody) {
   return JSON.parse(dataLines.join("\n"));
 }
 
-async function callKindoraTool(name, args) {
+async function callKindoraTool(name, args, mcpUrl = KINDORA_MCP_URL) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), KINDORA_TIMEOUT_MS);
   try {
@@ -920,7 +922,8 @@ async function callKindoraTool(name, args) {
     if (KINDORA_API_KEY) {
       headers.authorization = `Bearer ${KINDORA_API_KEY}`;
     }
-    const response = await fetch(KINDORA_MCP_URL, {
+    const response = await fetch(mcpUrl,
+    {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -972,8 +975,18 @@ async function discoverCandidates(profile, options) {
         limit: Math.min(Math.max(Number(options?.maxProspects ?? 6), 4), 8),
         exclude_funder_types: ["operating_nonprofit"],
       });
-      sourceNotes.push(`${options?.secondPassOnly ? "Second-pass local" : "Primary"} Kindora search_funders query: ${query}`);
-      for (const candidate of extractCandidates(result)) {
+      let extracted = extractCandidates(result);
+      sourceNotes.push(`${options?.secondPassOnly ? "Second-pass local" : "Primary"} Kindora search_funders query: ${query} (${extracted.length} candidate(s))`);
+      if (extracted.length === 0 && KINDORA_MCP_URL !== KINDORA_FALLBACK_MCP_URL) {
+        const fallbackResult = await callKindoraTool("search_funders", {
+          query,
+          limit: Math.min(Math.max(Number(options?.maxProspects ?? 6), 4), 8),
+          exclude_funder_types: ["operating_nonprofit"],
+        }, KINDORA_FALLBACK_MCP_URL);
+        extracted = extractCandidates(fallbackResult);
+        sourceNotes.push(`Fallback Kindora search_funders query: ${query} (${extracted.length} candidate(s))`);
+      }
+      for (const candidate of extracted) {
         const key = text(candidate.ein ?? candidate.EIN ?? candidate.name ?? candidate.legal_name);
         if (key && !candidates.has(key)) {
           candidates.set(key, normalizeCandidate(candidate));
