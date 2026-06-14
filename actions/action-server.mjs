@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.0",
+    version: "0.5.1",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -737,8 +737,8 @@ function qualityGateProspect(profile, candidate, evidence) {
   if (evidence.grantSize.status === "typical_grant_far_above_range") {
     cautions.push("Typical grant size appears far above the user's target range.");
   }
-  if (evidence.grantSize.score <= 4) {
-    disqualifiers.push("Grant-size fit is weak or outside the requested range.");
+  if (evidence.grantSize.score <= 4 && evidence.grantSize.status !== "typical_grant_far_above_range") {
+    cautions.push("Grant-size fit is weak or outside the requested range.");
   }
   if (evidence.recency.score <= 5) {
     cautions.push("Recent filing or grant evidence is stale or missing.");
@@ -752,6 +752,8 @@ function qualityGateProspect(profile, candidate, evidence) {
     prospectCategory = "reject";
   } else if (evidence.funderType === "partnership_or_intermediary") {
     prospectCategory = "partnership_or_intermediary";
+  } else if (evidence.grantSize.status === "typical_grant_far_above_range") {
+    prospectCategory = evidence.relationship.score >= 8 ? "relationship_first_prospect" : "research_only";
   } else if (evidence.openness.status === "invitation_or_closed") {
     prospectCategory = "relationship_first_prospect";
   } else if (cautions.length >= 2 || evidence.similarMatches.length === 0) {
