@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.1",
+    version: "0.5.2",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -946,7 +946,7 @@ async function discoverCandidates(profile, options) {
     try {
       const result = await callKindoraTool("search_funders", {
         query,
-        limit: Math.min(Math.max(Number(options?.maxProspects ?? 8), 6), 12),
+        limit: Math.min(Math.max(Number(options?.maxProspects ?? 6), 4), 8),
         exclude_funder_types: ["operating_nonprofit"],
       });
       sourceNotes.push(`${options?.secondPassOnly ? "Second-pass local" : "Primary"} Kindora search_funders query: ${query}`);
@@ -960,7 +960,9 @@ async function discoverCandidates(profile, options) {
       sourceNotes.push(`Kindora search failed for "${query}": ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  const maxPool = clamp(Number(options?.maxProspects ?? 6) * 4, 8, 32);
+  const maxPool = options?.secondPassOnly
+    ? clamp(Number(options?.maxProspects ?? 6), 4, 8)
+    : clamp(Number(options?.maxProspects ?? 6) * 2, 6, 12);
   const initial = [...candidates.values()].slice(0, maxPool);
   const detailed = [];
   for (const candidate of initial) {

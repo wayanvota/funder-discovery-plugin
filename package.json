@@ -1,6 +1,6 @@
 {
   "name": "funder-discovery-plugin",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Codex plugin for nonprofit foundation prospect discovery from public 990 data.",
   "type": "module",
   "scripts": {
