@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.4.0",
+    version: "0.4.1",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -1156,13 +1156,19 @@ function artifactFromPath(pathname) {
   return { artifact, extension: match[2] };
 }
 
-function sendDownload(res, contentType, filename, body) {
+function sendDownload(req, res, contentType, filename, body) {
+  const contentLength = Buffer.isBuffer(body) ? body.length : Buffer.byteLength(body);
   res.writeHead(200, {
     "content-type": contentType,
     "content-disposition": `attachment; filename="${filename}"`,
     "cache-control": "no-store",
+    "content-length": String(contentLength),
     "access-control-allow-origin": "*",
   });
+  if (req.method === "HEAD") {
+    res.end();
+    return;
+  }
   res.end(body);
 }
 
@@ -1176,15 +1182,16 @@ async function sendArtifact(req, res) {
     return true;
   }
   if (parsed.extension === "csv") {
-    sendDownload(res, "text/csv; charset=utf-8", "funder-pipeline.csv", parsed.artifact.csv);
+    sendDownload(req, res, "text/csv; charset=utf-8", "funder-pipeline.csv", parsed.artifact.csv);
     return true;
   }
   if (parsed.extension === "md") {
-    sendDownload(res, "text/markdown; charset=utf-8", "funder-pipeline.md", parsed.artifact.markdown);
+    sendDownload(req, res, "text/markdown; charset=utf-8", "funder-pipeline.md", parsed.artifact.markdown);
     return true;
   }
   const buffer = buildXlsx(parsed.artifact.pipelineRows);
   sendDownload(
+    req,
     res,
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "funder-pipeline.xlsx",
@@ -1403,7 +1410,7 @@ async function handleRoute(req, res) {
   if (req.method === "OPTIONS") {
     return sendJson(res, 204, {});
   }
-  if (req.method === "GET" && await sendArtifact(req, res)) {
+  if ((req.method === "GET" || req.method === "HEAD") && await sendArtifact(req, res)) {
     return;
   }
   const url = new URL(req.url, `http://${req.headers.host}`);
