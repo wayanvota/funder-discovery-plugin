@@ -1,6 +1,6 @@
 process.env.FUNDER_DISCOVERY_MOCK = "1";
 
-const { openApi, runDiscovery } = await import("../actions/action-server.mjs");
+const { buildXlsx, openApi, runDiscovery } = await import("../actions/action-server.mjs");
 
 const requiredOperations = [
   "checkOrganizationProfile",
@@ -48,6 +48,13 @@ if (!Array.isArray(complete.prospects) || complete.prospects.length < 3) {
 }
 if (!complete.csv.includes("foundation_name") || !complete.csv.includes("next_action")) {
   throw new Error("CSV is missing expected pipeline columns.");
+}
+if (!complete.downloadLinks?.csv || !complete.downloadLinks?.markdown || !complete.downloadLinks?.xlsx) {
+  throw new Error("Discovery did not return CSV, Markdown, and XLSX download links.");
+}
+const workbook = buildXlsx(complete.pipelineRows);
+if (workbook.subarray(0, 2).toString("utf8") !== "PK") {
+  throw new Error("Generated XLSX does not have a ZIP file signature.");
 }
 
 console.log("Actions check passed.");

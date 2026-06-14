@@ -64,8 +64,9 @@ Return the result in this order:
 1. One-sentence judgment on the pipeline quality.
 2. Shortlisted funder table with rank, foundation, score, confidence, recommended ask, next action, and main risk.
 3. Briefs for each shortlisted foundation, no more than 150 words each.
-4. CRM-ready CSV in a fenced `csv` block.
-5. A short note naming what should be verified before outreach.
+4. Download links for the pipeline files. Present `downloadLinks.xlsx` first if available, then `downloadLinks.csv`, then `downloadLinks.markdown`. Label them clearly as "Download XLSX", "Download CSV", and "Download Markdown report".
+5. CRM-ready CSV in a fenced `csv` block only when the user asks to preview or copy the CSV.
+6. A short note naming what should be verified before outreach.
 
 Use plain language. Do not expose raw JSON unless the user asks.
 

@@ -1,6 +1,7 @@
 import http from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
 
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
 const KINDORA_MCP_URL = process.env.KINDORA_MCP_URL ?? "https://kindora-mcp.azurewebsites.net/mcp/";
@@ -8,6 +9,8 @@ const KINDORA_API_KEY = process.env.KINDORA_API_KEY;
 const KINDORA_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_TIMEOUT ?? "60000", 10);
 const USE_MOCK_DATA = process.env.FUNDER_DISCOVERY_MOCK === "1";
 const DEFAULT_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://localhost:${PORT}`;
+const ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
+const artifacts = new Map();
 
 const requiredProfileFields = [
   ["mission", "What is your organization's mission in one sentence?"],
@@ -22,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.3.1",
+    version: "0.4.0",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -200,6 +203,8 @@ const openApi = {
           briefs: { type: "array", items: { type: "object", additionalProperties: true } },
           pipelineRows: { type: "array", items: { type: "object", additionalProperties: true } },
           csv: { type: "string" },
+          markdown: { type: "string" },
+          downloadLinks: { $ref: "#/components/schemas/DownloadLinks" },
           testObservations: { type: "array", items: { type: "string" } },
           sourceNotes: { type: "array", items: { type: "string" } },
         },
@@ -232,6 +237,16 @@ const openApi = {
         properties: {
           pipelineRows: { type: "array", items: { type: "object", additionalProperties: true } },
           csv: { type: "string" },
+          downloadLinks: { $ref: "#/components/schemas/DownloadLinks" },
+        },
+      },
+      DownloadLinks: {
+        type: "object",
+        properties: {
+          csv: { type: "string" },
+          markdown: { type: "string" },
+          xlsx: { type: "string" },
+          expiresAt: { type: "string" },
         },
       },
       CompactProspect: {
@@ -373,6 +388,12 @@ function openApiForRequest(req) {
     ...openApi,
     servers: [{ url: publicUrl }],
   };
+}
+
+function publicBaseUrlForRequest(req) {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+  return process.env.PUBLIC_BASE_URL ?? `${proto || "https"}://${req.headers.host}`;
 }
 
 async function readJson(req) {
@@ -1032,7 +1053,292 @@ function rowsToCsv(rows) {
   ].join("\n");
 }
 
-async function runDiscovery(body) {
+function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNotes) {
+  const lines = [
+    `# Funder Discovery Pipeline`,
+    "",
+    `Organization: ${profile.organizationName ?? "Not provided"}`,
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "## Shortlist",
+    "",
+    "| Rank | Foundation | Score | Confidence | Recommended Ask | Next Action | Main Risk |",
+    "|---:|---|---:|---|---|---|---|",
+    ...prospects.map((prospect) => [
+      prospect.rank,
+      escapeMarkdownTable(prospect.name),
+      prospect.totalFitScore,
+      escapeMarkdownTable(prospect.confidence),
+      escapeMarkdownTable(prospect.recommendedAsk),
+      escapeMarkdownTable(prospect.nextAction),
+      escapeMarkdownTable(prospect.mainRisk),
+    ].join(" | ")).map((row) => `| ${row} |`),
+    "",
+    "## Funder Briefs",
+    "",
+  ];
+  for (const brief of briefs) {
+    lines.push(
+      `### ${brief.rank}. ${brief.foundationName}`,
+      "",
+      `- EIN: ${brief.ein ?? "Not found"}`,
+      `- Location: ${brief.snapshot?.location ?? "Not found"}`,
+      `- Latest filing year: ${brief.snapshot?.latestFilingYear ?? "Not found"}`,
+      `- Assets: ${brief.financialCapacity?.assets ?? "Not found"}`,
+      `- Annual grants paid: ${brief.financialCapacity?.annualGrantsPaid ?? "Not found"}`,
+      `- Typical grant size: ${brief.financialCapacity?.typicalGrantSize ?? "Not found"}`,
+      `- Fit signal: ${brief.fitSignals?.programFit ?? "Not found"}`,
+      `- Recommended move: ${brief.recommendedMove?.nextAction ?? "Verify current guidelines"}`,
+      `- Risk: ${brief.risk ?? "Verify before outreach"}`,
+      "",
+    );
+  }
+  lines.push(
+    "## Pipeline Rows",
+    "",
+    "```csv",
+    rowsToCsv(pipelineRows),
+    "```",
+    "",
+    "## Verification Notes",
+    "",
+    ...sourceNotes.slice(0, 12).map((note) => `- ${note}`),
+    "- Verify current foundation guidelines, application deadlines, contact paths, and invitation status before outreach.",
+    "",
+  );
+  return lines.join("\n");
+}
+
+function escapeMarkdownTable(value) {
+  return text(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+}
+
+function storeArtifacts({ profile, prospects, briefs, pipelineRows, csv, markdown, baseUrl }) {
+  cleanupArtifacts();
+  const id = randomUUID();
+  const expiresAtDate = new Date(Date.now() + ARTIFACT_TTL_MS);
+  artifacts.set(id, {
+    profile,
+    prospects,
+    briefs,
+    pipelineRows,
+    csv,
+    markdown,
+    expiresAt: expiresAtDate.getTime(),
+  });
+  return {
+    csv: `${baseUrl}/api/artifacts/${id}/pipeline.csv`,
+    markdown: `${baseUrl}/api/artifacts/${id}/pipeline.md`,
+    xlsx: `${baseUrl}/api/artifacts/${id}/pipeline.xlsx`,
+    expiresAt: expiresAtDate.toISOString(),
+  };
+}
+
+function cleanupArtifacts() {
+  const now = Date.now();
+  for (const [id, artifact] of artifacts.entries()) {
+    if (artifact.expiresAt <= now) {
+      artifacts.delete(id);
+    }
+  }
+}
+
+function artifactFromPath(pathname) {
+  const match = pathname.match(/^\/api\/artifacts\/([^/]+)\/pipeline\.(csv|md|xlsx)$/);
+  if (!match) {
+    return null;
+  }
+  const artifact = artifacts.get(match[1]);
+  if (!artifact || artifact.expiresAt <= Date.now()) {
+    artifacts.delete(match[1]);
+    return { missing: true };
+  }
+  return { artifact, extension: match[2] };
+}
+
+function sendDownload(res, contentType, filename, body) {
+  res.writeHead(200, {
+    "content-type": contentType,
+    "content-disposition": `attachment; filename="${filename}"`,
+    "cache-control": "no-store",
+    "access-control-allow-origin": "*",
+  });
+  res.end(body);
+}
+
+async function sendArtifact(req, res) {
+  const parsed = artifactFromPath(new URL(req.url, `http://${req.headers.host}`).pathname);
+  if (!parsed) {
+    return false;
+  }
+  if (parsed.missing) {
+    sendJson(res, 404, { error: "not_found", message: "Artifact link expired or does not exist." });
+    return true;
+  }
+  if (parsed.extension === "csv") {
+    sendDownload(res, "text/csv; charset=utf-8", "funder-pipeline.csv", parsed.artifact.csv);
+    return true;
+  }
+  if (parsed.extension === "md") {
+    sendDownload(res, "text/markdown; charset=utf-8", "funder-pipeline.md", parsed.artifact.markdown);
+    return true;
+  }
+  const buffer = buildXlsx(parsed.artifact.pipelineRows);
+  sendDownload(
+    res,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "funder-pipeline.xlsx",
+    buffer,
+  );
+  return true;
+}
+
+function buildXlsx(rows) {
+  const headers = rows.length > 0 ? Object.keys(rows[0]) : ["pipeline"];
+  const sheetRows = [headers, ...rows.map((row) => headers.map((header) => row[header] ?? ""))];
+  const worksheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <sheetData>
+${sheetRows.map((row, rowIndex) => `    <row r="${rowIndex + 1}">${row.map((cell, columnIndex) => cellXml(cell, rowIndex + 1, columnIndex + 1)).join("")}</row>`).join("\n")}
+  </sheetData>
+</worksheet>`;
+  return zipFiles([
+    {
+      name: "[Content_Types].xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`,
+    },
+    {
+      name: "_rels/.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+    },
+    {
+      name: "xl/workbook.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Pipeline" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`,
+    },
+    {
+      name: "xl/_rels/workbook.xml.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`,
+    },
+    { name: "xl/worksheets/sheet1.xml", data: worksheetXml },
+  ]);
+}
+
+function cellXml(value, rowNumber, columnNumber) {
+  const ref = `${columnName(columnNumber)}${rowNumber}`;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `<c r="${ref}"><v>${value}</v></c>`;
+  }
+  return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(text(value))}</t></is></c>`;
+}
+
+function columnName(number) {
+  let name = "";
+  let current = number;
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    current = Math.floor((current - 1) / 26);
+  }
+  return name;
+}
+
+function xmlEscape(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function zipFiles(files) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const file of files) {
+    const name = Buffer.from(file.name);
+    const data = Buffer.from(file.data);
+    const crc = crc32(data);
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0, 6);
+    localHeader.writeUInt16LE(0, 8);
+    localHeader.writeUInt16LE(0, 10);
+    localHeader.writeUInt16LE(0, 12);
+    localHeader.writeUInt32LE(crc, 14);
+    localHeader.writeUInt32LE(data.length, 18);
+    localHeader.writeUInt32LE(data.length, 22);
+    localHeader.writeUInt16LE(name.length, 26);
+    localHeader.writeUInt16LE(0, 28);
+    localParts.push(localHeader, name, data);
+
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(0x02014b50, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0, 8);
+    centralHeader.writeUInt16LE(0, 10);
+    centralHeader.writeUInt16LE(0, 12);
+    centralHeader.writeUInt16LE(0, 14);
+    centralHeader.writeUInt32LE(crc, 16);
+    centralHeader.writeUInt32LE(data.length, 20);
+    centralHeader.writeUInt32LE(data.length, 24);
+    centralHeader.writeUInt16LE(name.length, 28);
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(offset, 42);
+    centralParts.push(centralHeader, name);
+    offset += localHeader.length + name.length + data.length;
+  }
+  const central = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, central, end]);
+}
+
+const crcTable = Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+  return value >>> 0;
+});
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
   const profile = body.organizationProfile ?? {};
   const options = body.options ?? {};
   const profileCheck = checkProfile(profile);
@@ -1057,6 +1363,20 @@ async function runDiscovery(body) {
   const csv = rowsToCsv(pipelineRows);
   const status = sourceNotes.some((note) => /failed/i.test(note)) ? "partial" : "complete";
   const compactProspects = prospects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
+  const cappedSourceNotes = [
+    ...sourceNotes.slice(0, 12),
+    "Foundation filings can lag. Verify current guidelines, contact paths, and invitation status before outreach.",
+  ];
+  const markdown = buildMarkdownReport(profile, compactProspects, briefs, pipelineRows, cappedSourceNotes);
+  const downloadLinks = storeArtifacts({
+    profile,
+    prospects: compactProspects,
+    briefs,
+    pipelineRows,
+    csv,
+    markdown,
+    baseUrl,
+  });
   return {
     status,
     summary: `Shortlisted ${prospects.length} foundation prospects for ${profile.organizationName ?? "the organization"}. Scores are prioritization aids, not final grant strategy.`,
@@ -1064,15 +1384,14 @@ async function runDiscovery(body) {
     briefs,
     pipelineRows,
     csv,
+    markdown,
+    downloadLinks,
     testObservations: [
       `Profile completeness score: ${profileCheck.completenessScore}.`,
       `Strongest candidate: ${prospects[0]?.name ?? "none"}.`,
       `Lowest-confidence shortlisted candidate: ${prospects.slice().sort((a, b) => confidenceRank(a.confidence) - confidenceRank(b.confidence))[0]?.name ?? "none"}.`,
     ],
-    sourceNotes: [
-      ...sourceNotes.slice(0, 12),
-      "Foundation filings can lag. Verify current guidelines, contact paths, and invitation status before outreach.",
-    ],
+    sourceNotes: cappedSourceNotes,
   };
 }
 
@@ -1083,6 +1402,9 @@ function confidenceRank(confidence) {
 async function handleRoute(req, res) {
   if (req.method === "OPTIONS") {
     return sendJson(res, 204, {});
+  }
+  if (req.method === "GET" && await sendArtifact(req, res)) {
+    return;
   }
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
@@ -1103,7 +1425,7 @@ async function handleRoute(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/api/funder-discovery/run") {
       const body = await readJson(req);
-      return sendJson(res, 200, await runDiscovery(body));
+      return sendJson(res, 200, await runDiscovery(body, publicBaseUrlForRequest(req)));
     }
     if (req.method === "POST" && url.pathname === "/api/score") {
       const body = await readJson(req);
@@ -1116,7 +1438,18 @@ async function handleRoute(req, res) {
     if (req.method === "POST" && url.pathname === "/api/pipeline/csv") {
       const body = await readJson(req);
       const rows = buildPipelineRows(body.organizationProfile ?? {}, body.prospects ?? [], body.ownerDefault ?? "Unassigned");
-      return sendJson(res, 200, { pipelineRows: rows, csv: rowsToCsv(rows) });
+      const csv = rowsToCsv(rows);
+      const markdown = buildMarkdownReport(body.organizationProfile ?? {}, body.prospects ?? [], [], rows, []);
+      const downloadLinks = storeArtifacts({
+        profile: body.organizationProfile ?? {},
+        prospects: body.prospects ?? [],
+        briefs: [],
+        pipelineRows: rows,
+        csv,
+        markdown,
+        baseUrl: publicBaseUrlForRequest(req),
+      });
+      return sendJson(res, 200, { pipelineRows: rows, csv, downloadLinks });
     }
     return sendJson(res, 404, { error: "not_found", message: `No route for ${req.method} ${url.pathname}` });
   } catch (error) {
@@ -1140,6 +1473,7 @@ export {
   runDiscovery,
   scoreProspect,
   buildPipelineRows,
+  buildXlsx,
   rowsToCsv,
   openApi,
 };
