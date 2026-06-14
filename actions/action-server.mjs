@@ -29,7 +29,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.6",
+    version: "0.6.7",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
