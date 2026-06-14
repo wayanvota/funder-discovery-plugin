@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.3",
+    version: "0.5.4",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -424,9 +424,32 @@ function isBlank(value) {
   return text(value).trim().length === 0;
 }
 
+function isVagueField(field, value) {
+  const source = text(value).toLowerCase().replace(/[^a-z0-9 $-]/g, " ").replace(/\s+/g, " ").trim();
+  if (!source) {
+    return true;
+  }
+  if (field === "mission") {
+    return /^(we )?(help|serve|support) (people|communities|everyone)$/.test(source) || source.split(/\s+/).length < 4;
+  }
+  if (field === "programsOrFundingNeeds") {
+    return /^(grants?|funding|support|money|donations?)$/.test(source) || source.split(/\s+/).length < 3;
+  }
+  if (field === "geographyServed") {
+    return /^(anywhere|everywhere|anywhere in the united states|all over|wherever)$/.test(source);
+  }
+  if (field === "beneficiaries") {
+    return /^(people|everyone|communities|families|individuals)$/.test(source);
+  }
+  if (field === "desiredGrantSize") {
+    return /^(any|any amount|whatever|as much as possible|unknown|not sure)$/.test(source);
+  }
+  return false;
+}
+
 function checkProfile(organizationProfile = {}) {
   const missing = requiredProfileFields
-    .filter(([field]) => isBlank(organizationProfile[field]))
+    .filter(([field]) => isBlank(organizationProfile[field]) || isVagueField(field, organizationProfile[field]))
     .map(([field]) => field);
   const questions = requiredProfileFields
     .filter(([field]) => missing.includes(field))
@@ -455,7 +478,7 @@ function checkProfile(organizationProfile = {}) {
     ready: missing.length === 0,
     completenessScore,
     missingFields: missing,
-    questions: questions.slice(0, 4),
+    questions: questions.slice(0, 6),
     assumptions,
   };
 }
