@@ -25,7 +25,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.4.1",
+    version: "0.4.2",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -202,9 +202,8 @@ const openApi = {
           prospects: { type: "array", items: { type: "object", additionalProperties: true } },
           briefs: { type: "array", items: { type: "object", additionalProperties: true } },
           pipelineRows: { type: "array", items: { type: "object", additionalProperties: true } },
-          csv: { type: "string" },
-          markdown: { type: "string" },
           downloadLinks: { $ref: "#/components/schemas/DownloadLinks" },
+          downloadLinksMarkdown: { type: "string" },
           testObservations: { type: "array", items: { type: "string" } },
           sourceNotes: { type: "array", items: { type: "string" } },
         },
@@ -1134,6 +1133,15 @@ function storeArtifacts({ profile, prospects, briefs, pipelineRows, csv, markdow
   };
 }
 
+function formatDownloadLinks(downloadLinks) {
+  return [
+    `[Download XLSX](${downloadLinks.xlsx})`,
+    `[Download CSV](${downloadLinks.csv})`,
+    `[Download Markdown report](${downloadLinks.markdown})`,
+    `Links expire at ${downloadLinks.expiresAt}.`,
+  ].join("\n");
+}
+
 function cleanupArtifacts() {
   const now = Date.now();
   for (const [id, artifact] of artifacts.entries()) {
@@ -1390,9 +1398,8 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
     prospects: compactProspects,
     briefs,
     pipelineRows,
-    csv,
-    markdown,
     downloadLinks,
+    downloadLinksMarkdown: formatDownloadLinks(downloadLinks),
     testObservations: [
       `Profile completeness score: ${profileCheck.completenessScore}.`,
       `Strongest candidate: ${prospects[0]?.name ?? "none"}.`,

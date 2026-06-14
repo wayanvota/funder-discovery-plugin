@@ -46,11 +46,14 @@ if (!["complete", "partial"].includes(complete.status)) {
 if (!Array.isArray(complete.prospects) || complete.prospects.length < 3) {
   throw new Error("Discovery did not return enough prospects.");
 }
-if (!complete.csv.includes("foundation_name") || !complete.csv.includes("next_action")) {
-  throw new Error("CSV is missing expected pipeline columns.");
-}
 if (!complete.downloadLinks?.csv || !complete.downloadLinks?.markdown || !complete.downloadLinks?.xlsx) {
   throw new Error("Discovery did not return CSV, Markdown, and XLSX download links.");
+}
+if (!complete.downloadLinksMarkdown?.includes("Download XLSX") || !complete.downloadLinksMarkdown?.includes("Download CSV")) {
+  throw new Error("Discovery did not return a user-facing download link block.");
+}
+if ("csv" in complete || "markdown" in complete) {
+  throw new Error("Discovery should return downloadable file links, not raw CSV or Markdown bodies.");
 }
 const workbook = buildXlsx(complete.pipelineRows);
 if (workbook.subarray(0, 2).toString("utf8") !== "PK") {
