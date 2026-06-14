@@ -27,7 +27,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.6",
+    version: "0.5.7",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -599,8 +599,20 @@ function grantsWithGeographyEvidence(profile, candidate) {
   const terms = geographyTerms(profile);
   return recentGrants(candidate).filter((grant) => {
     const body = grantText(grant);
-    return terms.some((term) => body.includes(term));
+    return terms.some((term) => containsSearchTerm(body, term));
   });
+}
+
+function containsSearchTerm(source, term) {
+  const hay = text(source).toLowerCase();
+  const needle = text(term).toLowerCase().trim();
+  if (!needle) {
+    return false;
+  }
+  if (/^[a-z0-9]{2,3}$/.test(needle)) {
+    return new RegExp(`\\b${needle}\\b`, "i").test(hay);
+  }
+  return hay.includes(needle);
 }
 
 function similarGranteeMatches(profile, candidate) {
@@ -659,7 +671,7 @@ function geographyEvidence(profile, candidate) {
   const terms = geographyTerms(profile);
   const body = haystack(candidate);
   const grantMatches = grantsWithGeographyEvidence(profile, candidate);
-  const directHits = terms.filter((term) => term.length > 1 && body.includes(term));
+  const directHits = terms.filter((term) => term.length > 1 && containsSearchTerm(body, term));
   if (grantMatches.length > 0) {
     return { score: 20, status: "recent_grant_geography_match", hits: directHits, grantMatches };
   }
