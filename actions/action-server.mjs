@@ -9,6 +9,7 @@ const KINDORA_MCP_URL = (process.env.KINDORA_MCP_URL ?? DEFAULT_KINDORA_MCP_URL)
 const KINDORA_FALLBACK_MCP_URL = DEFAULT_KINDORA_MCP_URL;
 const KINDORA_API_KEY = process.env.KINDORA_API_KEY;
 const KINDORA_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_TIMEOUT ?? "60000", 10);
+const KINDORA_SEARCH_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_SEARCH_TIMEOUT ?? "12000", 10);
 const USE_MOCK_DATA = process.env.FUNDER_DISCOVERY_MOCK === "1";
 const DEFAULT_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://localhost:${PORT}`;
 const ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -27,7 +28,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.6.2",
+    version: "0.6.3",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -1519,9 +1520,9 @@ function parseSseOrJson(textBody) {
   return JSON.parse(dataLines.join("\n"));
 }
 
-async function callKindoraTool(name, args, mcpUrl = KINDORA_MCP_URL) {
+async function callKindoraTool(name, args, mcpUrl = KINDORA_MCP_URL, timeoutMs = KINDORA_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), KINDORA_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const headers = {
       "accept": "application/json, text/event-stream",
@@ -1599,32 +1600,38 @@ async function discoverCandidates(profile, options) {
   const queries = buildSearchQueries(profile, options?.secondPassOnly ? "local" : "primary");
   const candidates = new Map();
   const sourceNotes = [];
-  for (const query of queries) {
+  const searchResults = await mapWithConcurrency(queries, 4, async (query) => {
+    const notes = [];
+    let extracted = [];
     try {
       const result = await callKindoraTool("search_funders", {
         query,
         limit: Math.min(Math.max(Number(options?.maxProspects ?? 6), 4), 8),
         exclude_funder_types: ["operating_nonprofit"],
-      });
-      let extracted = extractCandidates(result);
-      sourceNotes.push(`${options?.secondPassOnly ? "Second-pass local" : "Primary"} Kindora search_funders query: ${query} (${extracted.length} candidate(s))`);
+      }, KINDORA_MCP_URL, KINDORA_SEARCH_TIMEOUT_MS);
+      extracted = extractCandidates(result);
+      notes.push(`${options?.secondPassOnly ? "Second-pass local" : "Primary"} Kindora search_funders query: ${query} (${extracted.length} candidate(s))`);
       if (extracted.length === 0 && KINDORA_MCP_URL !== KINDORA_FALLBACK_MCP_URL) {
         const fallbackResult = await callKindoraTool("search_funders", {
           query,
           limit: Math.min(Math.max(Number(options?.maxProspects ?? 6), 4), 8),
           exclude_funder_types: ["operating_nonprofit"],
-        }, KINDORA_FALLBACK_MCP_URL);
+        }, KINDORA_FALLBACK_MCP_URL, KINDORA_SEARCH_TIMEOUT_MS);
         extracted = extractCandidates(fallbackResult);
-        sourceNotes.push(`Fallback Kindora search_funders query: ${query} (${extracted.length} candidate(s))`);
-      }
-      for (const candidate of extracted) {
-        const key = text(candidate.ein ?? candidate.EIN ?? candidate.name ?? candidate.legal_name);
-        if (key && !candidates.has(key)) {
-          candidates.set(key, normalizeCandidate(candidate));
-        }
+        notes.push(`Fallback Kindora search_funders query: ${query} (${extracted.length} candidate(s))`);
       }
     } catch (error) {
-      sourceNotes.push(`Kindora search failed for "${query}": ${error instanceof Error ? error.message : String(error)}`);
+      notes.push(`Kindora search failed for "${query}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return { query, notes, extracted };
+  });
+  for (const searchResult of searchResults) {
+    sourceNotes.push(...searchResult.notes);
+    for (const candidate of searchResult.extracted) {
+      const key = text(candidate.ein ?? candidate.EIN ?? candidate.name ?? candidate.legal_name);
+      if (key && !candidates.has(key)) {
+        candidates.set(key, normalizeCandidate(candidate));
+      }
     }
   }
   const regionalFallbackCount = options?.disableRegionalFallback
