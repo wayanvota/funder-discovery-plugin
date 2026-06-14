@@ -22,6 +22,8 @@ The important discipline is that the plugin does not treat a foundation name as 
 
 The Custom GPT Actions layer now applies a prospect-quality gate before building the pipeline. It classifies candidates as `direct_grant_prospect`, `relationship_first_prospect`, `partnership_or_intermediary`, `research_only`, or `reject`. Only direct and relationship-first prospects go into the active pipeline by default. Weaker candidates stay visible in a research-only section with the reason they were not promoted.
 
+For pilot demos, the Actions layer also includes a deterministic regional fallback catalog for common geographies such as New York City, Washington DC, San Francisco Bay Area, Los Angeles, Chicago, Boston, Seattle, Atlanta, Philadelphia, Miami, and Dallas. These seed candidates keep demos from depending entirely on live search ranking. They are labeled `regional_fallback_seed`, scored as low confidence, and require verification of current 990 data, guidelines, recent local grants, and relationship path before outreach.
+
 ## Repository Layout
 
 ```text

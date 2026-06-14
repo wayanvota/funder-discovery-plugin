@@ -14,12 +14,19 @@ The GPT handles the conversation. The action server handles the structured workf
 - Foundation discovery.
 - Fit scoring.
 - Prospect quality gating.
+- Deterministic regional fallback seeds for common geographies when live ranking is sparse.
 - Short funder briefs.
 - Downloadable XLSX, CSV, and Markdown pipeline files.
 
 ## Why One Main Action
 
 The seamless user experience depends on hiding tool choreography. The GPT should collect the organization profile and call `runFunderDiscoveryPilot` once. Smaller actions exist for diagnostics and testing, not for the normal fundraiser flow.
+
+## Regional Fallback
+
+The action server includes a deterministic regional fallback catalog for common pilot geographies including New York City, Washington DC, San Francisco Bay Area, Los Angeles, Chicago, Boston, Seattle, Atlanta, Philadelphia, Miami, and Dallas. The fallback is additive by default. It helps demos return local or regional starting points even when live search ranks broad national or out-of-area funders first.
+
+Fallback candidates are not treated as verified 990 evidence. They are labeled `regional_fallback_seed`, returned as low-confidence relationship-first prospects when mission and geography match, and marked `partial` until the user verifies current guidelines, latest filings, recent local grants, and a relationship path. Use `disableRegionalFallback: true` to turn this off, or `regionalFallbackOnly: true` for deterministic demo tests.
 
 ## Local Run
 

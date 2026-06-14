@@ -27,7 +27,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.9",
+    version: "0.6.0",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -189,6 +189,8 @@ const openApi = {
               includeOpenGrants: { type: "boolean", default: true },
               ownerDefault: { type: "string", default: "Unassigned" },
               mockMode: { type: "boolean", default: false },
+              disableRegionalFallback: { type: "boolean", default: false },
+              regionalFallbackOnly: { type: "boolean", default: false },
             },
           },
         },
@@ -372,6 +374,327 @@ const mockCandidates = [
     openness: "Concept notes accepted through intermediary referrals",
   },
 ];
+
+const regionalFallbackCatalog = {
+  nyc: {
+    label: "New York City",
+    aliases: [/new york city/i, /\bnyc\b/i, /brooklyn|bronx|queens|manhattan|staten island/i],
+    candidates: [
+      {
+        name: "The New York Community Trust",
+        location: "New York, NY",
+        website: "https://www.nycommunitytrust.org/",
+        geography: "New York City",
+        focus_areas: ["workforce development", "youth opportunity", "education", "economic mobility"],
+      },
+      {
+        name: "Robin Hood Foundation",
+        location: "New York, NY",
+        website: "https://www.robinhood.org/",
+        geography: "New York City",
+        focus_areas: ["poverty", "jobs", "economic mobility", "youth opportunity"],
+      },
+      {
+        name: "The Pinkerton Foundation",
+        location: "New York, NY",
+        website: "https://www.thepinkertonfoundation.org/",
+        geography: "New York City",
+        focus_areas: ["youth development", "career readiness", "education", "employment"],
+      },
+      {
+        name: "Altman Foundation",
+        location: "New York, NY",
+        website: "https://www.altmanfoundation.org/",
+        geography: "New York City",
+        focus_areas: ["education", "workforce development", "youth", "economic security"],
+      },
+      {
+        name: "Tiger Foundation",
+        location: "New York, NY",
+        website: "https://www.tigerfoundation.org/",
+        geography: "New York City",
+        focus_areas: ["poverty", "youth", "education", "employment"],
+      },
+    ],
+  },
+  dc: {
+    label: "Washington, DC",
+    aliases: [/washington,\s*dc/i, /washington dc/i, /\bdc\b/i, /district of columbia/i],
+    candidates: [
+      {
+        name: "Greater Washington Community Foundation",
+        location: "Washington, DC",
+        website: "https://www.thecommunityfoundation.org/",
+        geography: "Washington, DC and Greater Washington",
+        focus_areas: ["economic mobility", "workforce development", "education", "community opportunity"],
+      },
+      {
+        name: "The Morris and Gwendolyn Cafritz Foundation",
+        location: "Washington, DC",
+        website: "https://www.cafritzfoundation.org/",
+        geography: "Washington, DC metropolitan region",
+        focus_areas: ["community services", "education", "youth", "workforce"],
+      },
+      {
+        name: "The Meyer Foundation",
+        location: "Washington, DC",
+        website: "https://www.meyerfoundation.org/",
+        geography: "Washington, DC region",
+        focus_areas: ["equity", "economic justice", "community power", "nonprofit capacity"],
+      },
+    ],
+  },
+  sf: {
+    label: "San Francisco Bay Area",
+    aliases: [/san francisco/i, /\bsf\b/i, /bay area/i, /oakland/i, /silicon valley/i],
+    candidates: [
+      {
+        name: "San Francisco Foundation",
+        location: "San Francisco, CA",
+        website: "https://sff.org/",
+        geography: "San Francisco Bay Area",
+        focus_areas: ["economic mobility", "jobs", "education", "community power"],
+      },
+      {
+        name: "Tipping Point Community",
+        location: "San Francisco, CA",
+        website: "https://tippingpoint.org/",
+        geography: "San Francisco Bay Area",
+        focus_areas: ["poverty", "employment", "education", "youth"],
+      },
+      {
+        name: "Walter and Elise Haas Fund",
+        location: "San Francisco, CA",
+        website: "https://haassr.org/",
+        geography: "San Francisco Bay Area",
+        focus_areas: ["economic security", "education", "youth development", "community"],
+      },
+      {
+        name: "Zellerbach Family Foundation",
+        location: "San Francisco, CA",
+        website: "https://zff.org/",
+        geography: "San Francisco Bay Area",
+        focus_areas: ["community arts", "immigrant communities", "youth", "equity"],
+      },
+    ],
+  },
+  la: {
+    label: "Los Angeles",
+    aliases: [/los angeles/i, /\bla\b/i, /southern california/i],
+    candidates: [
+      {
+        name: "California Community Foundation",
+        location: "Los Angeles, CA",
+        website: "https://www.calfund.org/",
+        geography: "Los Angeles County",
+        focus_areas: ["education", "youth", "economic mobility", "community opportunity"],
+      },
+      {
+        name: "Weingart Foundation",
+        location: "Los Angeles, CA",
+        website: "https://weingartfnd.org/",
+        geography: "Southern California",
+        focus_areas: ["equity", "poverty", "nonprofit capacity", "community opportunity"],
+      },
+      {
+        name: "Annenberg Foundation",
+        location: "Los Angeles, CA",
+        website: "https://annenberg.org/",
+        geography: "Los Angeles and Southern California",
+        focus_areas: ["education", "youth", "community", "opportunity"],
+      },
+    ],
+  },
+  chicago: {
+    label: "Chicago",
+    aliases: [/chicago/i, /cook county/i],
+    candidates: [
+      {
+        name: "The Chicago Community Trust",
+        location: "Chicago, IL",
+        website: "https://www.cct.org/",
+        geography: "Chicago region",
+        focus_areas: ["economic opportunity", "education", "workforce", "community development"],
+      },
+      {
+        name: "Polk Bros. Foundation",
+        location: "Chicago, IL",
+        website: "https://www.polkbrosfdn.org/",
+        geography: "Chicago",
+        focus_areas: ["youth", "education", "employment", "basic needs"],
+      },
+      {
+        name: "The Field Foundation of Illinois",
+        location: "Chicago, IL",
+        website: "https://fieldfoundation.org/",
+        geography: "Chicago",
+        focus_areas: ["justice", "community", "youth", "leadership"],
+      },
+    ],
+  },
+  boston: {
+    label: "Boston",
+    aliases: [/boston/i, /greater boston/i, /massachusetts/i],
+    candidates: [
+      {
+        name: "The Boston Foundation",
+        location: "Boston, MA",
+        website: "https://www.tbf.org/",
+        geography: "Greater Boston",
+        focus_areas: ["education", "jobs", "economic mobility", "community"],
+      },
+      {
+        name: "Barr Foundation",
+        location: "Boston, MA",
+        website: "https://www.barrfoundation.org/",
+        geography: "Boston and Massachusetts",
+        focus_areas: ["education", "youth", "climate", "arts"],
+      },
+      {
+        name: "Hyams Foundation",
+        location: "Boston, MA",
+        website: "https://hyamsfoundation.org/",
+        geography: "Boston and Chelsea",
+        focus_areas: ["economic justice", "youth", "community power", "education"],
+      },
+    ],
+  },
+  seattle: {
+    label: "Seattle",
+    aliases: [/seattle/i, /king county/i, /puget sound/i],
+    candidates: [
+      {
+        name: "Seattle Foundation",
+        location: "Seattle, WA",
+        website: "https://www.seattlefoundation.org/",
+        geography: "Seattle and King County",
+        focus_areas: ["equity", "economic opportunity", "youth", "community"],
+      },
+      {
+        name: "Raikes Foundation",
+        location: "Seattle, WA",
+        website: "https://raikesfoundation.org/",
+        geography: "Washington State and national systems work",
+        focus_areas: ["youth", "education", "postsecondary success", "economic mobility"],
+      },
+      {
+        name: "Ballmer Group",
+        location: "Bellevue, WA",
+        website: "https://www.ballmergroup.org/",
+        geography: "Washington State and national",
+        focus_areas: ["economic mobility", "youth", "workforce", "community"],
+      },
+    ],
+  },
+  atlanta: {
+    label: "Atlanta",
+    aliases: [/atlanta/i, /georgia/i, /fulton county/i],
+    candidates: [
+      {
+        name: "Community Foundation for Greater Atlanta",
+        location: "Atlanta, GA",
+        website: "https://cfgreateratlanta.org/",
+        geography: "Greater Atlanta",
+        focus_areas: ["equity", "education", "economic mobility", "community"],
+      },
+      {
+        name: "Arthur M. Blank Family Foundation",
+        location: "Atlanta, GA",
+        website: "https://blankfoundation.org/",
+        geography: "Atlanta and Georgia",
+        focus_areas: ["youth development", "democracy", "environment", "community"],
+      },
+      {
+        name: "Joseph B. Whitehead Foundation",
+        location: "Atlanta, GA",
+        website: "https://www.woodruff.org/",
+        geography: "Atlanta and Georgia",
+        focus_areas: ["education", "health", "human services", "community"],
+      },
+    ],
+  },
+  philadelphia: {
+    label: "Philadelphia",
+    aliases: [/philadelphia/i, /\bphilly\b/i],
+    candidates: [
+      {
+        name: "The Philadelphia Foundation",
+        location: "Philadelphia, PA",
+        website: "https://www.philafound.org/",
+        geography: "Greater Philadelphia",
+        focus_areas: ["community", "equity", "education", "economic opportunity"],
+      },
+      {
+        name: "William Penn Foundation",
+        location: "Philadelphia, PA",
+        website: "https://williampennfoundation.org/",
+        geography: "Philadelphia region",
+        focus_areas: ["children", "education", "public space", "community"],
+      },
+      {
+        name: "Barra Foundation",
+        location: "Wayne, PA",
+        website: "https://www.barrafoundation.org/",
+        geography: "Greater Philadelphia",
+        focus_areas: ["innovation", "human services", "youth", "community"],
+      },
+    ],
+  },
+  miami: {
+    label: "Miami",
+    aliases: [/miami/i, /south florida/i, /miami-dade/i],
+    candidates: [
+      {
+        name: "The Miami Foundation",
+        location: "Miami, FL",
+        website: "https://miamifoundation.org/",
+        geography: "Miami-Dade County",
+        focus_areas: ["equity", "economic opportunity", "community", "youth"],
+      },
+      {
+        name: "The Children's Trust",
+        location: "Miami, FL",
+        website: "https://www.thechildrenstrust.org/",
+        geography: "Miami-Dade County",
+        focus_areas: ["children", "youth", "education", "family support"],
+      },
+      {
+        name: "Knight Foundation",
+        location: "Miami, FL",
+        website: "https://knightfoundation.org/",
+        geography: "Miami and selected U.S. communities",
+        focus_areas: ["community", "journalism", "arts", "technology"],
+      },
+    ],
+  },
+  dallas: {
+    label: "Dallas",
+    aliases: [/dallas/i, /north texas/i, /fort worth/i],
+    candidates: [
+      {
+        name: "Communities Foundation of Texas",
+        location: "Dallas, TX",
+        website: "https://www.cftexas.org/",
+        geography: "North Texas",
+        focus_areas: ["education", "economic security", "community", "youth"],
+      },
+      {
+        name: "The Meadows Foundation",
+        location: "Dallas, TX",
+        website: "https://www.mfi.org/",
+        geography: "Texas",
+        focus_areas: ["education", "human services", "civic", "community"],
+      },
+      {
+        name: "Lyda Hill Philanthropies",
+        location: "Dallas, TX",
+        website: "https://lydahillphilanthropies.org/",
+        geography: "North Texas and selected national initiatives",
+        focus_areas: ["science", "nature", "community", "women and girls"],
+      },
+    ],
+  },
+};
 
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload, null, 2);
@@ -600,6 +923,40 @@ function candidateGeographyText(candidate) {
   ].map(flattenText).join(" ").toLowerCase();
 }
 
+function regionalFallbackCandidates(profile) {
+  const geography = text(profile.geographyServed);
+  const matches = Object.values(regionalFallbackCatalog).filter((region) => (
+    region.aliases.some((pattern) => pattern.test(geography))
+  ));
+  return matches.flatMap((region) => region.candidates.map((candidate) => normalizeCandidate({
+    ...candidate,
+    foundation_type: candidate.foundation_type ?? "regional_fallback_seed",
+    source_type: "regional_fallback_seed",
+    source_label: `${region.label} deterministic regional fallback`,
+    openness: "Regional fallback seed. Verify current guidelines, invitation status, and recent grants before outreach.",
+  })));
+}
+
+function addRegionalFallbackCandidates(candidateMap, profile, sourceNotes) {
+  const seeds = regionalFallbackCandidates(profile);
+  if (seeds.length === 0) {
+    return 0;
+  }
+  let added = 0;
+  for (const seed of seeds) {
+    const key = text(seed.ein ?? seed.name ?? seed.legal_name ?? seed.foundation_name);
+    if (key && !candidateMap.has(key)) {
+      candidateMap.set(key, seed);
+      added += 1;
+    }
+  }
+  if (added > 0) {
+    const regions = [...new Set(seeds.map((seed) => seed.source_label).filter(Boolean))].join("; ");
+    sourceNotes.push(`Deterministic regional fallback added ${added} seed candidate(s): ${regions}. Verify all seed prospects before outreach.`);
+  }
+  return added;
+}
+
 function recentGrants(candidate) {
   return Array.isArray(candidate.recent_grants) ? candidate.recent_grants : [];
 }
@@ -767,6 +1124,9 @@ function relationshipEvidence(profile, candidate) {
 }
 
 function funderTypeStatus(candidate) {
+  if (candidate.source_type === "regional_fallback_seed") {
+    return "grantmaker";
+  }
   const body = text(candidate.foundation_type ?? candidate.funder_type ?? candidate.type ?? candidate.ntee_description ?? candidate.name).toLowerCase();
   if (/(operating|public charity|intermediary|council|association|jobs for the future)/.test(body)) {
     return "partnership_or_intermediary";
@@ -791,11 +1151,15 @@ function qualityGateProspect(profile, candidate, evidence) {
     openness: evidence.openness.status,
     relationship: evidence.relationship.status,
     funderType: evidence.funderType,
+    sourceType: candidate.source_type ?? "live_or_uploaded",
     similarGrantees: evidence.similarMatches.length,
   };
 
   if (evidence.funderType === "unclear") {
     cautions.push("Grantmaker status is unclear in available data.");
+  }
+  if (candidate.source_type === "regional_fallback_seed") {
+    cautions.push("Candidate came from the deterministic regional fallback and needs current 990 and guideline verification.");
   }
   if (evidence.funderType === "partnership_or_intermediary") {
     cautions.push("May be a partnership or intermediary target rather than a direct foundation prospect.");
@@ -826,6 +1190,8 @@ function qualityGateProspect(profile, candidate, evidence) {
     prospectCategory = "reject";
   } else if (evidence.funderType === "partnership_or_intermediary") {
     prospectCategory = "partnership_or_intermediary";
+  } else if (candidate.source_type === "regional_fallback_seed" && evidence.program.score >= 12 && evidence.geography.score >= 17) {
+    prospectCategory = "relationship_first_prospect";
   } else if (evidence.grantSize.status === "typical_grant_far_above_range") {
     prospectCategory = evidence.relationship.score >= 8 ? "relationship_first_prospect" : "research_only";
   } else if (evidence.openness.status === "invitation_or_closed") {
@@ -903,6 +1269,9 @@ function clamp(value, min, max) {
 
 function buildRationale(candidate, evidence) {
   const parts = [];
+  if (candidate.source_type === "regional_fallback_seed") {
+    parts.push("Regional fallback seed based on common local funder lists, not verified recent grant evidence.");
+  }
   if (evidence.program.grantMatches.length > 0) {
     parts.push(`${evidence.program.grantMatches.length} recent grant(s) show program fit.`);
   } else if (evidence.program.matchingKeywords.length > 0) {
@@ -923,6 +1292,9 @@ function buildRationale(candidate, evidence) {
 }
 
 function buildRisk(candidate, gate) {
+  if (candidate.source_type === "regional_fallback_seed") {
+    return "Seeded regional prospect. Verify current 990 data, guidelines, geography, and recent grantees before outreach.";
+  }
   if (gate.disqualifiers.length > 0) {
     return gate.disqualifiers[0];
   }
@@ -1010,6 +1382,17 @@ function tryParseTextContent(result) {
 }
 
 async function discoverCandidates(profile, options) {
+  if (options?.regionalFallbackOnly) {
+    const candidates = regionalFallbackCandidates(profile);
+    const regions = [...new Set(candidates.map((candidate) => candidate.source_label).filter(Boolean))].join("; ");
+    return {
+      candidates,
+      sourceNotes: candidates.length > 0
+        ? [`Deterministic regional fallback only: ${candidates.length} seed candidate(s) for ${regions}. Verify all seed prospects before outreach.`]
+        : ["Deterministic regional fallback only: no matching regional seed candidates found."],
+    };
+  }
+
   if (USE_MOCK_DATA || options?.mockMode) {
     return { candidates: mockCandidates, sourceNotes: ["Using mock data for deterministic pilot testing."] };
   }
@@ -1045,9 +1428,12 @@ async function discoverCandidates(profile, options) {
       sourceNotes.push(`Kindora search failed for "${query}": ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  const regionalFallbackCount = options?.disableRegionalFallback
+    ? 0
+    : addRegionalFallbackCandidates(candidates, profile, sourceNotes);
   const maxPool = options?.secondPassOnly
-    ? clamp(Number(options?.maxProspects ?? 6), 4, 8)
-    : clamp(Number(options?.maxProspects ?? 6) * 2, 6, 12);
+    ? clamp(Number(options?.maxProspects ?? 6), 4, 8) + regionalFallbackCount
+    : clamp(Number(options?.maxProspects ?? 6) * 2, 6, 12) + regionalFallbackCount;
   const initial = [...candidates.values()].slice(0, maxPool);
   const detailed = [];
   for (const candidate of initial) {
@@ -1338,6 +1724,8 @@ function compactProspect(prospect, rank, profile) {
     typical_grant_size: prospect.typical_grant_size ?? "",
     focus_areas: compactList(prospect.focus_areas, 4),
     geography: compactValue(prospect.geography, 200),
+    source_type: prospect.source_type ?? "",
+    source_label: prospect.source_label ?? "",
     sample_grants: Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 2).map(compactGrant) : [],
     programFitScore: prospect.programFitScore,
     geographyFitScore: prospect.geographyFitScore,
@@ -1360,6 +1748,9 @@ function compactProspect(prospect, rank, profile) {
 }
 
 function nextActionFor(prospect) {
+  if (prospect.source_type === "regional_fallback_seed") {
+    return "Verify current guidelines, latest 990 data, recent local grants, and a warm introduction path before outreach.";
+  }
   if (prospect.prospectCategory === "reject") {
     return "Do not prioritize unless new evidence resolves the disqualifier.";
   }
@@ -1792,7 +2183,7 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
   const shortlistSize = clamp(Number(options.shortlistSize ?? 5), 3, 8);
   let scored = rankProspects(candidates.map((candidate) => ({ ...candidate, ...scoreProspect(profile, candidate) })));
   let activeCandidates = activePipelineProspects(scored);
-  if (!USE_MOCK_DATA && !options?.mockMode && activeCandidates.length < shortlistSize) {
+  if (!USE_MOCK_DATA && !options?.mockMode && !options?.regionalFallbackOnly && activeCandidates.length < shortlistSize) {
     const secondPass = await discoverCandidates(profile, { ...options, secondPassOnly: true });
     sourceNotes.push(`Second-pass local search triggered because only ${activeCandidates.length} active prospect(s) passed the quality gate.`);
     candidates = mergeCandidates(candidates, secondPass.candidates);
@@ -1807,7 +2198,8 @@ async function runDiscovery(body, baseUrl = DEFAULT_BASE_URL) {
   const briefs = prospects.map((prospect, index) => buildBrief(profile, prospect, index + 1));
   const pipelineRows = buildPipelineRows(profile, prospects, options.ownerDefault ?? "Unassigned");
   const csv = rowsToCsv(pipelineRows);
-  const status = sourceNotes.some((note) => /failed/i.test(note)) || prospects.length < 3 ? "partial" : "complete";
+  const usesRegionalFallback = prospects.some((prospect) => prospect.source_type === "regional_fallback_seed");
+  const status = sourceNotes.some((note) => /failed/i.test(note)) || prospects.length < 3 || usesRegionalFallback ? "partial" : "complete";
   const compactProspects = prospects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
   const compactResearchOnly = researchOnlyProspects.map((prospect, index) => compactProspect(prospect, index + 1, profile));
   const cappedSourceNotes = [

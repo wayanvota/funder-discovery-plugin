@@ -60,6 +60,30 @@ assert(Array.isArray(complete.researchOnlyProspects), "Discovery should return r
 assert(complete.downloadLinks?.xlsx && complete.downloadLinks?.csv && complete.downloadLinks?.markdown, "Discovery should return XLSX, CSV, and Markdown links.");
 assert(!("csv" in complete) && !("markdown" in complete), "Discovery should not paste raw CSV or Markdown bodies.");
 
+const nycFallback = await runDiscovery({
+  organizationProfile: profileBase(),
+  options: { shortlistSize: 5, regionalFallbackOnly: true },
+});
+assert(nycFallback.status === "partial", "Regional fallback-only results should be marked partial until verified against live filings.");
+assert(nycFallback.prospects.length >= 3, "NYC regional fallback should create a usable local demo shortlist.");
+assert(nycFallback.prospects.every((prospect) => prospect.source_type === "regional_fallback_seed"), "NYC fallback prospects should be labeled as regional fallback seeds.");
+assert(nycFallback.prospects.every((prospect) => prospect.confidence === "Low"), "Regional fallback prospects should stay low confidence until verified.");
+assert(nycFallback.prospects.some((prospect) => /New York|Robin Hood|Pinkerton|Altman|Tiger/i.test(prospect.name)), "NYC fallback should include recognizable regional funders.");
+assert(nycFallback.sourceNotes.some((note) => /Deterministic regional fallback/i.test(note)), "NYC fallback should disclose deterministic seed source.");
+assert(!nycFallback.sourceNotes.some((note) => /Second-pass local search/i.test(note)), "Regional fallback-only mode should not trigger second-pass live search notes.");
+assert(nycFallback.prospects.every((prospect) => /verify/i.test(`${prospect.nextAction} ${prospect.mainRisk}`)), "Regional fallback prospects should require verification before outreach.");
+
+const sfFallback = await runDiscovery({
+  organizationProfile: profileBase({
+    geographyServed: "San Francisco Bay Area",
+    programsOrFundingNeeds: "Digital skills, youth employment, and economic mobility program support.",
+  }),
+  options: { shortlistSize: 3, regionalFallbackOnly: true },
+});
+assert(sfFallback.prospects.length >= 3, "SF regional fallback should create a usable local demo shortlist.");
+assert(sfFallback.prospects.some((prospect) => /San Francisco Foundation|Tipping Point|Haas/i.test(prospect.name)), "SF fallback should include recognizable Bay Area funders.");
+assert(sfFallback.prospects.every((prospect) => /San Francisco|Bay Area/i.test(`${prospect.location} ${prospect.geography} ${prospect.source_label}`)), "SF fallback prospects should carry local geography labels.");
+
 const expectedCsvColumns = [
   "rank",
   "foundation_name",
