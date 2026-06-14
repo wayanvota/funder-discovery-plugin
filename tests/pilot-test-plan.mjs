@@ -220,4 +220,21 @@ const buffaloForNyc = scoreProspect(profileBase(), {
 assert(buffaloForNyc.geographyFitScore < 8, "New York State evidence should not satisfy a New York City profile.");
 assert(buffaloForNyc.prospectCategory === "reject", "Regional New York funder outside NYC should require manual research first.");
 
+const unnamedPipelineRow = buildPipelineRows(profileBase(), [{
+  foundation_name: "Fallback Name Foundation",
+  totalFitScore: 44,
+  prospectCategory: "reject",
+  confidence: "Low",
+  programFitScore: 12,
+  geographyFitScore: 3,
+  grantSizeFitScore: 10,
+  recencyScore: 10,
+  opennessScore: 6,
+  relationshipPathScore: 2,
+  evidenceFlags: {},
+  whyNot: "No clear geography evidence.",
+  mainRisk: "No clear geography evidence.",
+}])[0];
+assert(unnamedPipelineRow.foundation_name === "Fallback Name Foundation", "Pipeline rows should use fallback funder names when normalized name is missing.");
+
 console.log("Pilot test plan passed.");

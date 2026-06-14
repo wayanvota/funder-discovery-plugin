@@ -27,7 +27,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.8",
+    version: "0.5.9",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -1248,7 +1248,7 @@ function buildBrief(profile, prospect, rank) {
   const grants = Array.isArray(prospect.recent_grants) ? prospect.recent_grants.slice(0, 2).map(compactGrant) : [];
   return {
     rank,
-    foundationName: prospect.name,
+    foundationName: displayName(prospect),
     ein: prospect.ein,
     snapshot: {
       location: prospect.location || "Not found in available data",
@@ -1293,6 +1293,18 @@ function compactGrant(grant) {
   };
 }
 
+function displayName(prospect) {
+  return text(
+    prospect.name
+      ?? prospect.legal_name
+      ?? prospect.foundation_name
+      ?? prospect.organization_name
+      ?? prospect.propublica_name
+      ?? prospect.ein
+      ?? "Unnamed funder",
+  );
+}
+
 function compactList(value, limit = 5) {
   if (Array.isArray(value)) {
     return value.map((item) => compactValue(item, 80)).filter(Boolean).slice(0, limit);
@@ -1316,7 +1328,7 @@ function compactValue(value, maxLength = 240) {
 function compactProspect(prospect, rank, profile) {
   return {
     rank,
-    name: prospect.name,
+    name: displayName(prospect),
     ein: prospect.ein ?? "",
     location: compactValue(prospect.location, 120),
     website: prospect.website ?? "",
@@ -1399,7 +1411,7 @@ function deadlineFor(index, confidence) {
 function buildPipelineRows(profile, prospects, ownerDefault = "Unassigned") {
   return prospects.map((prospect, index) => ({
     rank: index + 1,
-    foundation_name: prospect.name,
+    foundation_name: displayName(prospect),
     ein: prospect.ein ?? "",
     website: prospect.website ?? "",
     hq_location: prospect.location ?? "",
