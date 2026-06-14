@@ -27,7 +27,7 @@ const openApi = {
   openapi: "3.1.0",
   info: {
     title: "Funder Discovery Pilot Actions",
-    version: "0.5.7",
+    version: "0.5.8",
     description:
       "Actions API for a Custom GPT that collects nonprofit details, discovers aligned foundations, scores fit, and returns a shortlisted donor pipeline.",
   },
@@ -296,10 +296,10 @@ const mockCandidates = [
     latest_filing_year: 2024,
     typical_grant_size: 75000,
     focus_areas: ["youth development", "workforce readiness", "community opportunity"],
-    geography: "New York and national demonstration projects",
+    geography: "New York City and national demonstration projects",
     recent_grants: [
-      { recipient: "Youth Futures Network", amount: 85000, year: 2024, purpose: "Youth workforce training" },
-      { recipient: "Community Pathways", amount: 65000, year: 2023, purpose: "Career readiness" },
+      { recipient: "Youth Futures Network", amount: 85000, year: 2024, purpose: "Youth workforce training in New York City" },
+      { recipient: "Community Pathways", amount: 65000, year: 2023, purpose: "Career readiness in New York City" },
     ],
     openness: "Public LOI accepted twice per year",
   },
@@ -333,7 +333,7 @@ const mockCandidates = [
     focus_areas: ["economic mobility", "digital inclusion", "youth employment"],
     geography: "California and scalable national models",
     recent_grants: [
-      { recipient: "Digital Futures", amount: 150000, year: 2024, purpose: "Digital skills for low-income youth" },
+      { recipient: "Digital Futures", amount: 150000, year: 2024, purpose: "Digital skills for low-income youth in New York City" },
     ],
     openness: "Staff contact and inquiry form listed",
   },
@@ -550,17 +550,54 @@ function cleanWords(value) {
 function geographyTerms(profile) {
   const raw = text(profile.geographyServed).toLowerCase();
   const terms = raw
-    .split(/[,;/]|\band\b/)
+    .split(/[,;/]|\band\b|\bwith\b|\bplus\b/)
     .map((term) => term.trim())
-    .filter((term) => term.length > 1);
+    .filter((term) => term.length > 1)
+    .filter((term) => !isBroadGeographyTerm(term));
   const expanded = new Set(terms);
   if (/\bnyc\b|new york city|brooklyn|bronx|queens|manhattan|staten island/.test(raw)) {
-    ["new york city", "nyc", "new york", "ny"].forEach((term) => expanded.add(term));
-  }
-  if (/\bny\b|new york/.test(raw)) {
-    ["new york", "ny"].forEach((term) => expanded.add(term));
+    ["new york city", "nyc"].forEach((term) => expanded.add(term));
+  } else if (/\bny\b|new york/.test(raw)) {
+    expanded.add("new york");
   }
   return [...expanded];
+}
+
+function isBroadGeographyTerm(term) {
+  return /^(national|nationally|nationwide|united states|u s|us|usa|countrywide|regional|statewide|online|remote)\b/.test(term)
+    || /\bnational\b/.test(term)
+    || /\breplication partners?\b/.test(term);
+}
+
+function profileHasNationalScope(profile) {
+  return /\b(?:national|nationwide|united states|u\.?s\.?|usa)\b/i.test(text(profile.geographyServed));
+}
+
+function flattenText(value) {
+  if (Array.isArray(value)) {
+    return value.map(flattenText).filter(Boolean).join(" ");
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).map(flattenText).filter(Boolean).join(" ");
+  }
+  return value === undefined || value === null ? "" : String(value);
+}
+
+function candidateGeographyText(candidate) {
+  return [
+    candidate.location,
+    candidate.city,
+    candidate.state,
+    candidate.country,
+    candidate.geography,
+    candidate.geographic_focus,
+    candidate.funding_geography,
+    candidate.funding_geographies,
+    candidate.service_area,
+    candidate.service_areas,
+    candidate.recipient_state_distribution,
+    candidate.recipient_country_distribution,
+  ].map(flattenText).join(" ").toLowerCase();
 }
 
 function recentGrants(candidate) {
@@ -669,7 +706,7 @@ function grantSizeEvidence(profile, candidate) {
 
 function geographyEvidence(profile, candidate) {
   const terms = geographyTerms(profile);
-  const body = haystack(candidate);
+  const body = candidateGeographyText(candidate);
   const grantMatches = grantsWithGeographyEvidence(profile, candidate);
   const directHits = terms.filter((term) => term.length > 1 && containsSearchTerm(body, term));
   if (grantMatches.length > 0) {
@@ -678,7 +715,7 @@ function geographyEvidence(profile, candidate) {
   if (directHits.length > 0) {
     return { score: 17, status: "profile_geography_match", hits: directHits, grantMatches };
   }
-  if (body.includes("national")) {
+  if (profileHasNationalScope(profile) && body.includes("national")) {
     return { score: 10, status: "national_but_unconfirmed_local_fit", hits: [], grantMatches };
   }
   return { score: 3, status: "geography_not_confirmed", hits: [], grantMatches };

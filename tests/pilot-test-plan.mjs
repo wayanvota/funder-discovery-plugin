@@ -187,4 +187,37 @@ const stale = scoreProspect(profileBase(), {
 assert(stale.recencyScore <= 5, "Stale filing year should receive low recency score.");
 assert(/2019|stale|filing|verify/i.test(`${stale.rationale} ${stale.whyNot} ${stale.mainRisk}`), "Stale data should be visible in rationale, risk, or why-not.");
 
+const geographyEcho = scoreProspect(profileBase({
+  geographyServed: "New York City with national replication partners",
+}), {
+  name: "Spokane Workforce Council",
+  foundation_type: "grantmaker_evidence",
+  location: "Spokane, WA",
+  latest_filing_year: 2024,
+  typical_grant_size: 90000,
+  search_context: "New York City with national replication partners",
+  raw_excerpt: "query: New York City workforce development grants",
+  recent_grants: [
+    { recipient: "Career Path Services", amount: 85000, year: 2024, purpose: "Employment and training", city: "Spokane", state: "WA" },
+  ],
+  openness: "LOI accepted",
+});
+assert(geographyEcho.geographyFitScore < 8, "Search/profile context must not count as local geography evidence.");
+assert(geographyEcho.prospectCategory === "reject", "Out-of-area regional funder should not pass the active quality gate for NYC.");
+
+const buffaloForNyc = scoreProspect(profileBase(), {
+  name: "Buffalo Workforce Fund",
+  foundation_type: "private foundation",
+  location: "Buffalo, NY",
+  latest_filing_year: 2024,
+  typical_grant_size: 90000,
+  geography: "Western New York",
+  recent_grants: [
+    { recipient: "Buffalo Career Center", amount: 85000, year: 2024, purpose: "Youth workforce training", city: "Buffalo", state: "NY" },
+  ],
+  openness: "LOI accepted",
+});
+assert(buffaloForNyc.geographyFitScore < 8, "New York State evidence should not satisfy a New York City profile.");
+assert(buffaloForNyc.prospectCategory === "reject", "Regional New York funder outside NYC should require manual research first.");
+
 console.log("Pilot test plan passed.");
