@@ -2787,7 +2787,7 @@ function buildMarkdownReport(profile, prospects, briefs, pipelineRows, sourceNot
 }
 
 function escapeMarkdownTable(value) {
-  return text(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  return text(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
 function storeArtifacts({ profile, prospects, briefs, pipelineRows, csv, markdown, baseUrl }) {
@@ -3206,9 +3206,10 @@ async function handleRoute(req, res) {
     }
     return sendJson(res, 404, { error: "not_found", message: `No route for ${req.method} ${url.pathname}` });
   } catch (error) {
+    process.stderr.write(`Funder Discovery request failed: ${error instanceof Error ? error.stack : String(error)}\n`);
     return sendJson(res, 500, {
       error: "server_error",
-      message: error instanceof Error ? error.message : String(error),
+      message: "The request could not be completed.",
     });
   }
 }
@@ -3229,5 +3230,6 @@ export {
   buildPipelineRows,
   buildXlsx,
   rowsToCsv,
+  escapeMarkdownTable,
   openApi,
 };

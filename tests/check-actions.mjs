@@ -1,6 +1,6 @@
 process.env.FUNDER_DISCOVERY_MOCK = "1";
 
-const { buildXlsx, openApi, runDiscovery } = await import("../actions/action-server.mjs");
+const { buildXlsx, escapeMarkdownTable, openApi, runDiscovery } = await import("../actions/action-server.mjs");
 
 const requiredOperations = [
   "checkOrganizationProfile",
@@ -70,6 +70,9 @@ if ("csv" in complete || "markdown" in complete) {
 const workbook = buildXlsx(complete.pipelineRows);
 if (workbook.subarray(0, 2).toString("utf8") !== "PK") {
   throw new Error("Generated XLSX does not have a ZIP file signature.");
+}
+if (escapeMarkdownTable("A\\B | C\nD") !== "A\\\\B \\| C D") {
+  throw new Error("Markdown table values do not safely escape backslashes, pipes, and newlines.");
 }
 
 console.log("Actions check passed.");
