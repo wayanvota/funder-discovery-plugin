@@ -40,6 +40,7 @@ docs/                          Setup and workflow notes
 actions/action-server.mjs      REST API for Custom GPT Actions pilot
 custom-gpt/                    GPT builder instructions and fields
 tests/check-actions.mjs        Deterministic pilot API test
+tests/e2e.test.mjs             20-case subprocess and HTTP end-to-end suite
 ```
 
 ## Custom GPT Pilot
@@ -86,6 +87,47 @@ The servers speak MCP over stdio, so they will wait for JSON-RPC messages. To ch
 ```bash
 npm run check:mcp
 ```
+
+Run all existing checks plus the end-to-end harness:
+
+```bash
+npm ci
+npm test
+npm audit --audit-level=high
+```
+
+The E2E suite is deterministic and uses temporary loopback services. It starts
+both MCP servers as child processes, exchanges JSON-RPC messages over stdio,
+sends their upstream calls to a local fixture, and starts the Actions server in
+mock mode. It covers exactly 20 labeled categories: `U01` to `U10` for user
+workflows and `A01` to `A10` for malformed input, validation, request-size,
+host-allowlist, failure-redaction, and secret-safety cases. No production key
+is needed.
+
+Run only that boundary:
+
+```bash
+npm run test:e2e
+```
+
+Debug one category with Node's name filter:
+
+```bash
+node --test --test-name-pattern="A08" tests/e2e.test.mjs
+```
+
+When adding a tool or route, extend the local upstream fixture in
+`tests/e2e.test.mjs`, then add a successful workflow and its most relevant
+failure case. Keep production credentials out of fixtures, CI, reports, and
+captured output. GitHub Actions runs the complete suite on Node 22.16.0 for
+every pull request.
+
+The ProPublica MCP server accepts `PROPUBLICA_BASE_URL` for deterministic test
+or controlled-proxy use. Filing XML is restricted to HTTPS on
+`projects.propublica.org`, `www.irs.gov`, `apps.irs.gov`, and
+`s3.amazonaws.com` by default. Add a reviewed host through the comma-separated
+`PROPUBLICA_ALLOWED_XML_HOSTS` setting. `PROPUBLICA_ALLOW_TEST_HTTP=1` exists
+only for local fixture testing and must not be enabled in production.
 
 To check plugin packaging from a Codex development environment, run the plugin validator:
 

@@ -14,7 +14,17 @@ const KINDORA_DETAIL_TIMEOUT_MS = Number.parseInt(process.env.KINDORA_DETAIL_TIM
 const USE_MOCK_DATA = process.env.FUNDER_DISCOVERY_MOCK === "1";
 const DEFAULT_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://localhost:${PORT}`;
 const ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_REQUEST_BYTES = 1024 * 1024;
 const artifacts = new Map();
+
+class RequestError extends Error {
+  constructor(statusCode, code, message) {
+    super(message);
+    this.name = "RequestError";
+    this.statusCode = statusCode;
+    this.code = code;
+  }
+}
 
 const requiredProfileFields = [
   ["mission", "What is your organization's mission in one sentence?"],
@@ -1277,14 +1287,23 @@ function publicBaseUrlForRequest(req) {
 
 async function readJson(req) {
   const chunks = [];
+  let size = 0;
   for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MAX_REQUEST_BYTES) {
+      throw new RequestError(413, "payload_too_large", "Request body exceeds the 1 MiB limit.");
+    }
     chunks.push(chunk);
   }
   const body = Buffer.concat(chunks).toString("utf8");
   if (!body.trim()) {
     return {};
   }
-  return JSON.parse(body);
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new RequestError(400, "invalid_json", "Request body must be valid JSON.");
+  }
 }
 
 function text(value) {
@@ -3206,10 +3225,14 @@ async function handleRoute(req, res) {
     }
     return sendJson(res, 404, { error: "not_found", message: `No route for ${req.method} ${url.pathname}` });
   } catch (error) {
-    process.stderr.write(`Funder Discovery request failed: ${error instanceof Error ? error.stack : String(error)}\n`);
-    return sendJson(res, 500, {
-      error: "server_error",
-      message: "The request could not be completed.",
+    const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+    const errorCode = typeof error?.code === "string" ? error.code : "server_error";
+    process.stderr.write(`Funder Discovery request failed: ${statusCode} ${error instanceof Error ? error.name : "Error"}\n`);
+    return sendJson(res, statusCode, {
+      error: errorCode,
+      message: statusCode < 500 && error instanceof Error
+        ? error.message
+        : "The request could not be completed.",
     });
   }
 }

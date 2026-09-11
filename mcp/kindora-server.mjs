@@ -26,7 +26,7 @@ const fallbackTools = [
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Funder name or cause-area phrase." },
+        query: { type: "string", maxLength: 500, description: "Funder name or cause-area phrase." },
         state: { type: "string", description: "Two-letter US state code for funder headquarters." },
         city: { type: "string", description: "City name for funder headquarters." },
         country: { type: "array", items: { type: "string" }, description: "Funder headquarters countries." },
@@ -50,7 +50,7 @@ const fallbackTools = [
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Natural-language topic or cause-area search." },
+        query: { type: "string", maxLength: 500, description: "Natural-language topic or cause-area search." },
         focus_area: { type: "string" },
         state: { type: "string" },
         country: { type: "string" },
@@ -73,11 +73,11 @@ const fallbackTools = [
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string" },
+        query: { type: "string", maxLength: 500 },
         category: { type: "string" },
         exclude_categories: { type: "array", items: { type: "string" } },
-        funder_ein: { type: "string" },
-        funder_eins: { type: "array", items: { type: "string" } },
+        funder_ein: { type: "string", pattern: "^[0-9]{2}-?[0-9]{7}$" },
+        funder_eins: { type: "array", maxItems: 100, items: { type: "string", pattern: "^[0-9]{2}-?[0-9]{7}$" } },
         state: { type: "string" },
         country: { type: "string" },
         remote: { type: "string" },
@@ -96,7 +96,7 @@ const fallbackTools = [
     description: "Get a detailed profile for one foundation by EIN.",
     inputSchema: {
       type: "object",
-      properties: { ein: { type: "string", description: "Foundation EIN, with or without hyphen." } },
+      properties: { ein: { type: "string", pattern: "^[0-9]{2}-?[0-9]{7}$", description: "Foundation EIN, with or without hyphen." } },
       required: ["ein"],
       additionalProperties: false,
     },
@@ -109,7 +109,7 @@ const fallbackTools = [
     inputSchema: {
       type: "object",
       properties: {
-        ein: { type: "string" },
+        ein: { type: "string", pattern: "^[0-9]{2}-?[0-9]{7}$" },
         years: { type: "integer", minimum: 1, maximum: 10, default: 5 },
       },
       required: ["ein"],
@@ -124,10 +124,10 @@ const fallbackTools = [
     inputSchema: {
       type: "object",
       properties: {
-        ein: { type: "string" },
+        ein: { type: "string", pattern: "^[0-9]{2}-?[0-9]{7}$" },
         year: { type: "integer" },
         ntee_code: { type: "string" },
-        purpose_keyword: { type: "string" },
+        purpose_keyword: { type: "string", maxLength: 500 },
         recipient_state: { type: "string" },
         recipient_country: { type: "string" },
         limit: { type: "integer", minimum: 1, maximum: 50, default: 20 },
@@ -143,7 +143,7 @@ const fallbackTools = [
     description: "Get aggregate giving statistics for a foundation.",
     inputSchema: {
       type: "object",
-      properties: { ein: { type: "string" } },
+      properties: { ein: { type: "string", pattern: "^[0-9]{2}-?[0-9]{7}$" } },
       required: ["ein"],
       additionalProperties: false,
     },
@@ -157,7 +157,7 @@ const fallbackTools = [
       type: "object",
       properties: {
         category: { type: "string", description: "Single category letter A-Z." },
-        query: { type: "string", description: "Search term against code descriptions." },
+        query: { type: "string", maxLength: 500, description: "Search term against code descriptions." },
       },
       additionalProperties: false,
     },
@@ -213,11 +213,11 @@ async function callUpstream(method, params = {}, id = "kindora-proxy") {
     });
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(`Kindora upstream returned HTTP ${response.status}: ${text.slice(0, 300)}`);
+      throw new Error(`Kindora upstream returned HTTP ${response.status}.`);
     }
     const message = parseSseOrJson(text);
     if (message.error) {
-      throw new Error(message.error.message ?? JSON.stringify(message.error));
+      throw new Error("Kindora upstream returned an error.");
     }
     return message.result;
   } finally {
@@ -226,8 +226,9 @@ async function callUpstream(method, params = {}, id = "kindora-proxy") {
 }
 
 function filterTools(tools) {
+  const allowed = new Set(fallbackTools.map((tool) => tool.name));
   return tools
-    .filter((tool) => tool.name !== "list_tools")
+    .filter((tool) => allowed.has(tool.name))
     .map((tool) => ({
       ...tool,
       annotations: {
@@ -249,11 +250,78 @@ async function listTools() {
   return fallbackTools;
 }
 
+function validateValue(name, value, schema) {
+  if (schema.type === "string") {
+    if (typeof value !== "string") {
+      throw new Error(`${name} must be a string.`);
+    }
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) {
+      throw new Error(`${name} must be ${schema.maxLength} characters or fewer.`);
+    }
+    if (schema.pattern && !(new RegExp(schema.pattern)).test(value)) {
+      throw new Error(`${name} has an invalid format.`);
+    }
+  } else if (schema.type === "integer") {
+    if (!Number.isInteger(value)
+      || (schema.minimum !== undefined && value < schema.minimum)
+      || (schema.maximum !== undefined && value > schema.maximum)) {
+      throw new Error(`${name} must be an integer within the documented range.`);
+    }
+  } else if (schema.type === "boolean" && typeof value !== "boolean") {
+    throw new Error(`${name} must be a boolean.`);
+  } else if (schema.type === "array") {
+    if (!Array.isArray(value)) {
+      throw new Error(`${name} must be an array.`);
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      throw new Error(`${name} must contain no more than ${schema.maxItems} items.`);
+    }
+    for (const item of value) {
+      validateValue(`${name} item`, item, schema.items ?? {});
+    }
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    throw new Error(`${name} must be one of the documented values.`);
+  }
+}
+
+function validateToolArguments(tool, args) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("arguments must be an object.");
+  }
+  const schema = tool.inputSchema ?? { properties: {} };
+  for (const required of schema.required ?? []) {
+    if (!(required in args)) {
+      throw new Error(`${required} is required.`);
+    }
+  }
+  for (const [name, value] of Object.entries(args)) {
+    const property = schema.properties?.[name];
+    if (!property) {
+      if (schema.additionalProperties === false) {
+        throw new Error(`Unknown argument: ${name}`);
+      }
+      continue;
+    }
+    validateValue(name, value, property);
+  }
+}
+
 async function handleToolCall(id, params) {
   const name = params?.name;
-  const allowed = new Set(fallbackTools.map((tool) => tool.name));
-  if (!allowed.has(name)) {
+  const tool = fallbackTools.find((candidate) => candidate.name === name);
+  if (!tool) {
     sendError(id, JsonRpcError.INVALID_PARAMS, `Unknown Kindora tool: ${name ?? ""}`);
+    return;
+  }
+  try {
+    validateToolArguments(tool, params.arguments ?? {});
+  } catch (error) {
+    sendError(
+      id,
+      JsonRpcError.INVALID_PARAMS,
+      error instanceof Error ? error.message : "Invalid tool arguments.",
+    );
     return;
   }
   const result = await callUpstream(
@@ -288,10 +356,11 @@ async function handleRequest(message) {
     try {
       await handleToolCall(id, params);
     } catch (error) {
+      process.stderr.write(`Kindora tool call failed: ${error instanceof Error ? error.stack : String(error)}\n`);
       sendError(
         id,
         JsonRpcError.INTERNAL_ERROR,
-        error instanceof Error ? error.message : String(error),
+        "Kindora could not complete the request. Try again later.",
       );
     }
     return;

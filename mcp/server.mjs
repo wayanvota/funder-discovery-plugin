@@ -2,7 +2,16 @@ import readline from "node:readline";
 
 const SERVER_NAME = "ProPublica 990 Lookup";
 const SERVER_VERSION = "0.1.0";
-const BASE_URL = "https://projects.propublica.org/nonprofits/api/v2";
+const BASE_URL = process.env.PROPUBLICA_BASE_URL ?? "https://projects.propublica.org/nonprofits/api/v2";
+const MAX_QUERY_LENGTH = 500;
+const MAX_URL_LENGTH = 2048;
+const ALLOWED_XML_HOSTS = new Set(
+  (process.env.PROPUBLICA_ALLOWED_XML_HOSTS
+    ?? "projects.propublica.org,www.irs.gov,apps.irs.gov,s3.amazonaws.com")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+);
 const JsonRpcError = {
   METHOD_NOT_FOUND: -32601,
   INVALID_PARAMS: -32602,
@@ -21,11 +30,15 @@ function sendError(id, code, message) {
   send({ jsonrpc: "2.0", id, error: { code, message } });
 }
 
-function requireString(value, name) {
+function requireString(value, name, maxLength = MAX_QUERY_LENGTH) {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${name} must be a non-empty string.`);
   }
-  return value.trim();
+  const normalized = value.trim();
+  if (normalized.length > maxLength) {
+    throw new Error(`${name} must be ${maxLength} characters or fewer.`);
+  }
+  return normalized;
 }
 
 function normalizeEin(value) {
@@ -172,11 +185,15 @@ async function getFoundationFilings(args) {
 }
 
 async function getFilingXml(args) {
-  const url = requireString(args.xml_url, "xml_url");
+  const url = requireString(args.xml_url, "xml_url", MAX_URL_LENGTH);
   const maxChars = boundedInteger(args.max_chars, "max_chars", 1000, 200000, 50000);
   const parsed = new URL(url);
-  if (!["https:", "http:"].includes(parsed.protocol)) {
-    throw new Error("xml_url must be an http or https URL.");
+  const allowTestHttp = process.env.PROPUBLICA_ALLOW_TEST_HTTP === "1";
+  if (parsed.protocol !== "https:" && !(allowTestHttp && parsed.protocol === "http:")) {
+    throw new Error("xml_url must use https.");
+  }
+  if (parsed.username || parsed.password || !ALLOWED_XML_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error("xml_url must use an approved IRS or ProPublica host.");
   }
   const text = await fetchText(parsed.toString());
   return {
@@ -196,7 +213,7 @@ const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        q: { type: "string", description: "Organization name or keyword." },
+        q: { type: "string", maxLength: MAX_QUERY_LENGTH, description: "Organization name or keyword." },
         state: { type: "string", description: "Optional two-letter state filter." },
         ntee_code: { type: "string", description: "Optional NTEE prefix filter, such as B or B20." },
         limit: { type: "integer", minimum: 1, maximum: 50, default: 20 },
@@ -239,7 +256,7 @@ const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        xml_url: { type: "string", description: "An IRS filing XML URL supplied by the caller or another filing source." },
+        xml_url: { type: "string", maxLength: MAX_URL_LENGTH, description: "An HTTPS filing XML URL on an approved IRS or ProPublica host." },
         max_chars: { type: "integer", minimum: 1000, maximum: 200000, default: 50000 },
       },
       required: ["xml_url"],
